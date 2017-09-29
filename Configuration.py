@@ -1,0 +1,94 @@
+import base64
+import hashlib
+
+from JSONUtils import *
+from X3DHException import X3DHException
+
+class Configuration(object):
+    HASH_FUNCTIONS = {
+        "SHA-256": hashlib.sha256,
+        "SHA-512": hashlib.sha512
+    }
+
+    def __init__(self):
+        self.__info_string   = None
+        self.__curve         = None
+        self.__hash_function = None
+        self.__spk_timeout   = None
+        self.__min_num_otpks = None
+        self.__max_num_otpks = None
+
+    @classmethod
+    def fromFile(cls, path):
+        configuration = loadFromFile(path, None)
+        if not configuration:
+            raise X3DHException("Configuration file not found or invalid JSON detected")
+
+        result = cls()
+        result.__info_string   = configuration["info_string"]
+        result.__curve         = configuration["curve"]
+        result.__hash_function = configuration["hash_function"]
+        result.__spk_timeout   = configuration["spk_timeout"]
+        result.__min_num_otpks = configuration["min_num_otpks"]
+        result.__max_num_otpks = configuration["max_num_otpks"]
+        return result
+
+    @classmethod
+    def fromValues(cls, info_string, curve, hash_function, spk_timeout, min_num_otpks, max_num_otpks):
+        """
+        info_string: An ASCII string identifying the application
+        curve: Either X25519 or X448
+        hash_function: A 256 or 512-bit hash function (e.g. SHA-256 or SHA-512), any key of Configuration.HASH_FUNCTIONS
+        spk_timeout: Rotate the SPK after this amount of seconds
+        min_num_otpks: Minimum number of OTPKs that must be available
+        max_num_otpks: Maximum number of OTPKs that may be available
+        """
+
+        # Include these lines to make the code raise an exception if any invalid values were passed
+        cls.HASH_FUNCTIONS[hash_function]
+
+        if not curve in [ "X25519", "X448" ]:
+            raise KeyError
+
+        result = cls()
+        result.__info_string   = info_string
+        result.__curve         = curve
+        result.__hash_function = hash_function
+        result.__spk_timeout   = spk_timeout
+        result.__min_num_otpks = min_num_otpks
+        result.__max_num_otpks = max_num_otpks
+        return result
+
+    def toFile(self, path):
+        dumpToFile(path, {
+            "info_string":   self.__info_string,
+            "curve":         self.__curve,
+            "hash_function": self.__hash_function,
+            "spk_timeout":   self.__spk_timeout,
+            "min_num_otpks": self.__min_num_otpks,
+            "max_num_otpks": self.__max_num_otpks
+        })
+
+    @property
+    def info_string(self):
+        return self.__info_string
+
+    @property
+    def curve(self):
+        return self.__curve
+
+    @property
+    def hash_function(self):
+        return Configuration.HASH_FUNCTIONS[self.__hash_function]
+
+    @property
+    def spk_timeout(self):
+        return self.__spk_timeout
+
+    @property
+    def min_num_otpks(self):
+        return self.__min_num_otpks
+
+    @property
+    def max_num_otpks(self):
+        return self.__max_num_otpks

@@ -1,0 +1,9 @@
+Library: HKDF - HMAC Key Derivation Function
+Link: https://github.com/casebeer/python-hkdf
+License: BSD-2-Clause "Simplified" License
+Installation: pip install hkdf
+
+Library: PyNaCl - Python binding to the libsodium library
+Link: https://github.com/pyca/pynacl
+License: Apache License 2.0
+Installation: pip install pynacl
