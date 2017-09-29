@@ -147,14 +147,14 @@ class State(object):
         return PublicBundle(ik_ver, spk_pub, spk_sig, otpk_pubs)
 
     def initSessionActive(self, other_public_bundle, allow_zero_otpks = False):
-        other_ik = self.__KeyQuad.fromQuad(verifying_key = other_public_bundle.ik)
+        other_ik = self.__KeyQuad(verifying_key = other_public_bundle.ik)
 
         other_spk = {
-            "key": self.__KeyQuad.fromQuad(public_key = other_public_bundle.spk["key"]),
+            "key": self.__KeyQuad(public_key = other_public_bundle.spk["key"]),
             "signature": other_public_bundle.spk["signature"]
         }
 
-        other_otpks = [ self.__KeyQuad.fromQuad(public_key = otpk) for otpk in other_public_bundle.otpks ]
+        other_otpks = [ self.__KeyQuad(public_key = otpk) for otpk in other_public_bundle.otpks ]
 
         if len(other_otpks) == 0 and not allow_zero_otpks:
             raise X3DHException("This public bundle does not contain any OTPKs, which is not allowed")
@@ -192,8 +192,8 @@ class State(object):
         }
 
     def initSessionPassive(self, session_init_data, allow_no_otpk = False):
-        other_ik = self.__KeyQuad.fromQuad(verifying_key = session_init_data["ik"])
-        other_ek = self.__KeyQuad.fromQuad(public_key = session_init_data["ek"])
+        other_ik = self.__KeyQuad(verifying_key = session_init_data["ik"])
+        other_ek = self.__KeyQuad(public_key = session_init_data["ek"])
 
         if self.__spk["key"].pub != session_init_data["spk"]:
             raise X3DHException("The SPK used for this session initialization has been rotated, the session can not be initiated")

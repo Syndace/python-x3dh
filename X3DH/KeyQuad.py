@@ -1,6 +1,6 @@
 class KeyQuad(object):
     @classmethod
-    def fromQuad(cls, public_key = None, secret_key = None, signing_key = None, verifying_key = None):
+    def __init__(self, public_key = None, secret_key = None, signing_key = None, verifying_key = None):
         raise NotImplementedError
 
     @classmethod

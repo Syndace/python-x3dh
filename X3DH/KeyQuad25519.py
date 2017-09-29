@@ -11,12 +11,27 @@ from nacl.signing import SigningKey as Ed25519SigningKey
 from nacl.signing import VerifyKey as Ed25519VerifyingKey
 
 class KeyQuad25519(KeyQuad):
-    def __init__(self):
-        self.__public_key = None
-        self.__secret_key = None
+    def __init__(self, public_key = None, secret_key = None, signing_key = None, verifying_key = None):
+        self.__public_key = KeyQuad25519.__wrap(public_key, Curve25519PublicKey)
+        self.__secret_key = KeyQuad25519.__wrap(secret_key, Curve25519SecretKey)
+        self.__signing_key = KeyQuad25519.__wrap(signing_key, Ed25519SigningKey)
+        self.__verifying_key = KeyQuad25519.__wrap(verifying_key, Ed25519VerifyingKey)
 
-        self.__signing_key = None
-        self.__verifying_key = None
+        if self.__signing_key and not self.__verifying_key:
+            # Derive the verifying key from the signing key
+            self.__verifying_key = self.__signing_key.verify_key
+
+        if self.__signing_key and not self.__secret_key:
+            # Derive the secret_key key from the signing key
+            self.__secret_key = self.__signing_key.to_curve25519_private_key()
+
+        if self.__verifying_key and not self.__public_key:
+            # Derive the public key from the verifying key
+            self.__public_key = self.__verifying_key.to_curve25519_public_key()
+
+        if self.__secret_key and not self.__public_key:
+            # Derive the public key from the secret key
+            self.__public_key = secret_key.public_key
 
     @staticmethod
     def __wrap(key, cls):
@@ -29,38 +44,8 @@ class KeyQuad25519(KeyQuad):
         return cls(key)
 
     @classmethod
-    def fromQuad(cls, public_key = None, secret_key = None, signing_key = None, verifying_key = None):
-        public_key = cls.__wrap(public_key, Curve25519PublicKey)
-        secret_key = cls.__wrap(secret_key, Curve25519SecretKey)
-        signing_key = cls.__wrap(signing_key, Ed25519SigningKey)
-        verifying_key = cls.__wrap(verifying_key, Ed25519VerifyingKey)
-
-        if signing_key and not verifying_key:
-            # Derive the verifying key from the signing key
-            verifying_key = signing_key.verify_key
-
-        if signing_key and not secret_key:
-            # Derive the secret_key key from the signing key
-            secret_key = signing_key.to_curve25519_private_key()
-
-        if verifying_key and not public_key:
-            # Derive the public key from the verifying key
-            public_key = verifying_key.to_curve25519_public_key()
-
-        if secret_key and not public_key:
-            # Derive the public key from the secret key
-            public_key = secret_key.public_key
-
-        result = cls()
-        result.__public_key = public_key
-        result.__secret_key = secret_key
-        result.__signing_key = signing_key
-        result.__verifying_key = verifying_key
-        return result
-
-    @classmethod
     def generate(cls):
-        return cls.fromQuad(signing_key = Ed25519SigningKey.generate())
+        return cls(signing_key = Ed25519SigningKey.generate())
 
     @classmethod
     def fromSerializable(cls, data):
@@ -78,7 +63,7 @@ class KeyQuad25519(KeyQuad):
         if verifying_key:
             verifying_key = base64.b64decode(verifying_key)
 
-        return cls.fromQuad(public_key, secret_key, signing_key, verifying_key)
+        return cls(public_key, secret_key, signing_key, verifying_key)
 
     def toSerializable(self):
         data = {}
