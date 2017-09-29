@@ -1,0 +1,6 @@
+--------------------------------------------------
+29 September 2017
+
+Initial commit for private git tracking.
+The implementation for curve X25519 is complete but completely untested.
+The implementation for curve X448 was not started and probably will not in the near future.
