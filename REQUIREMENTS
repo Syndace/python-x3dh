@@ -7,3 +7,8 @@ Library: PyNaCl - Python binding to the libsodium library
 Link: https://github.com/pyca/pynacl
 License: Apache License 2.0
 Installation: pip install pynacl
+
+Library: SCCI - Syndace's Common Crypto-Interfaces
+Link: https://github.com/Syndace/scci
+License: MIT
+Installation: pip install scci

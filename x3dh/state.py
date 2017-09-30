@@ -3,11 +3,12 @@ from functools import wraps
 import os
 import time
 
-from Configuration import Configuration
-from JSONUtils import *
-from KeyQuad25519 import KeyQuad25519
-from PublicBundle import PublicBundle
-from X3DHException import X3DHException
+from config import Config
+from jsonutils import *
+from scci.implementations import KeyQuad25519
+from scci.implementations import KeyQuad448
+from publicbundle import PublicBundle
+from exceptions import SessionInitiationException
 
 from hkdf import hkdf_expand, hkdf_extract
 from nacl.utils import random
@@ -26,19 +27,19 @@ class State(object):
         configuration: If present, use this as the configuration for this State object. Otherwise, use the configuration previously saved.
         """
 
-        # Track whether the state has somehow changed since loading it
+        # Track whether this State has somehow changed since loading it
         # This can be used e.g. to republish the public bundle if something has changed
         self._changed = False
 
         self.__directory = directory
 
         # Load the configuration
-        self.__conf = configuration if configuration else Configuration.fromFile(os.path.join(self.__directory, "configuration.json"))
+        self.__config = configuration if configuration else Config.fromFile(os.path.join(self.__directory, "configuration.json"))
 
-        if self.__conf.curve == "X25519":
+        if self.__config.curve == "X25519":
             self.__KeyQuad = KeyQuad25519
-        if self.__conf.curve == "X448":
-            raise NotImplementedError("Sorry, curve X448 is not implemented yet")
+        if self.__config.curve == "X448":
+            self.__KeyQuad = KeyQuad448
 
         self.__loadState()
 
@@ -63,16 +64,16 @@ class State(object):
         self.__refillOTPKs()
 
     def __kdf(self, secret_key_material):
-        salt = b"\x00" * self.__conf.hash_function().digest_size
+        salt = b"\x00" * self.__config.hash_function().digest_size
 
-        if self.__conf.curve == "X25519":
+        if self.__config.curve == "X25519":
             input_key_material = b"\xFF" * 32
-        if self.__conf.curve == "X448":
+        if self.__config.curve == "X448":
             input_key_material = b"\xFF" * 57
 
         input_key_material.expand(secret_key_material)
 
-        return hkdf_expand(hkdf_extract(salt, input_key_material, self.__conf.hash_function), self.__conf.info_string, 32, self.__conf.hash_function)
+        return hkdf_expand(hkdf_extract(salt, input_key_material, self.__config.hash_function), self.__config.info_string, 32, self.__config.hash_function)
 
     @changes
     def __generateIK(self):
@@ -105,7 +106,7 @@ class State(object):
         """
 
         if num_otpks == None:
-            num_otpks = self.__conf.max_num_otpks
+            num_otpks = self.__config.max_num_otpks
 
         
         otpks = []
@@ -123,7 +124,7 @@ class State(object):
         Check whether the SPK is too old and generate a new one in that case.
         """
 
-        if time.time() - self.__spk["timestamp"] > self.__conf.spk_timeout:
+        if time.time() - self.__spk["timestamp"] > self.__config.spk_timeout:
             self.__generateSPK()
 
     def __refillOTPKs(self):
@@ -131,8 +132,8 @@ class State(object):
         If the amount of available OTPKs fell under the minimum, refills the OTPKs up to the maximum limit again.
         """
 
-        if len(self.__otpks) < self.__conf.min_num_otpks:
-            self.__generateOTPKs(self.__conf.max_num_otpks - len(self.__otpks))
+        if len(self.__otpks) < self.__config.min_num_otpks:
+            self.__generateOTPKs(self.__config.max_num_otpks - len(self.__otpks))
 
     def getPublicBundle(self):
         """
@@ -157,10 +158,10 @@ class State(object):
         other_otpks = [ self.__KeyQuad(public_key = otpk) for otpk in other_public_bundle.otpks ]
 
         if len(other_otpks) == 0 and not allow_zero_otpks:
-            raise X3DHException("This public bundle does not contain any OTPKs, which is not allowed")
+            raise SessionInitiationException("The other public bundle does not contain any OTPKs, which is not allowed")
 
         if not other_ik.verify(other_spk["key"].pub, other_spk["signature"]):
-            raise X3DHException("The signature of the public bundle spk could not be verifified!")
+            raise SessionInitiationException("The signature of this public bundle's spk could not be verifified!")
 
         ek = self.__KeyQuad.generate()
 
@@ -196,7 +197,7 @@ class State(object):
         other_ek = self.__KeyQuad(public_key = session_init_data["ek"])
 
         if self.__spk["key"].pub != session_init_data["spk"]:
-            raise X3DHException("The SPK used for this session initialization has been rotated, the session can not be initiated")
+            raise SessionInitiationException("The SPK used for this session initialization has been rotated, the session can not be initiated")
 
         my_otpk = None
         if "otpk" in session_init_data:
@@ -206,9 +207,9 @@ class State(object):
                     break
 
             if not my_otpk:
-                raise X3DHException("The OTPK used for this session initialization has been deleted, the session can not be initiated")
+                raise SessionInitiationException("The OTPK used for this session initialization has been deleted, the session can not be initiated")
         elif not allow_no_otpk:
-            raise X3DHException("This session initialization data does not contain an OTPK, which is not allowed")
+            raise SessionInitiationException("This session initialization data does not contain an OTPK, which is not allowed")
 
         dh_concat = self.__spk["key"].getSharedSecret(other_ik)       # DH1
         dh_concat.extend(self.__ik.getSharedSecret(other_ek))         # DH2
@@ -236,7 +237,7 @@ class State(object):
         Save configuration and state to files in the directory provided to __init__.
         """
 
-        self.__conf.toFile(os.path.join(self.__directory, "configuration.json"))
+        self.__config.toFile(os.path.join(self.__directory, "configuration.json"))
 
         dumpToFile(os.path.join(self.__directory, "ik.json"), self.__ik.toSerializable())
 
