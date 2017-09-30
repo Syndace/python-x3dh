@@ -5,6 +5,6 @@ This python library offers an implementation of the Extended Triple Diffie-Hellm
 
 Goals for this implementation are:
 - Keep it small and simple (e.g. don't include the AEAD encryption, leave that to the user of the library)
-- Don't assume any parameters, leave it all configurable (I had a hard time finding an implementation that does not hardcode any of the parameters)
+- Don't assume any parameters, leave it all configurable
 
 This library is currently in a very early state, most of the code has not been tested at all, there are probably bugs.
