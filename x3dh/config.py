@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import base64
 import hashlib
 
-from .jsonutils import dumpToFile, loadFromFile
 from .exceptions import InvalidConfigurationException
 
 class Config(object):
@@ -34,24 +33,6 @@ class Config(object):
         self.__spk_timeout   = spk_timeout
         self.__min_num_otpks = min_num_otpks
         self.__max_num_otpks = max_num_otpks
-
-    @classmethod
-    def fromFile(cls, path):
-        configuration = loadFromFile(path, None)
-        if not configuration:
-            raise InvalidConfigurationException("Configuration file not found or invalid JSON detected")
-
-        return cls(**configuration)
-
-    def toFile(self, path):
-        dumpToFile(path, {
-            "info_string":   self.__info_string,
-            "curve":         self.__curve,
-            "hash_function": self.__hash_function,
-            "spk_timeout":   self.__spk_timeout,
-            "min_num_otpks": self.__min_num_otpks,
-            "max_num_otpks": self.__max_num_otpks
-        })
 
     @property
     def info_string(self):

@@ -6,7 +6,6 @@ import os
 import time
 
 from .config import Config
-from .jsonutils import dumpToFile, loadFromFile
 from .publicbundle import PublicBundle
 from .exceptions import SessionInitiationException
 
@@ -22,47 +21,22 @@ def changes(f):
     return wrapper
 
 class State(object):
-    def __init__(self, directory, configuration = None):
-        """
-        directory: A path to a directory where this State object may save/load data to/from.
-        configuration: If present, use this as the configuration for this State object. Otherwise, use the configuration previously saved.
-        """
-
+    def __init__(self, configuration):
         # Track whether this State has somehow changed since loading it
         # This can be used e.g. to republish the public bundle if something has changed
         self._changed = False
 
-        self.__directory = directory
-
         # Load the configuration
-        self.__config = configuration if configuration else Config.fromFile(os.path.join(self.__directory, "configuration.json"))
+        self.__config = configuration
 
         if self.__config.curve == "X25519":
             self.__KeyQuad = KeyQuad25519
         if self.__config.curve == "X448":
             self.__KeyQuad = KeyQuad448
 
-        self.__loadState()
-
-    def __loadState(self):
-        ik = loadFromFile(os.path.join(self.__directory, "ik.json"), self.__generateIK, True)
-        if ik:
-            self.__ik = self.__KeyQuad.fromSerializable(ik)
-
-        spk = loadFromFile(os.path.join(self.__directory, "spk.json"), self.__generateSPK, True)
-        if spk:
-            self.__spk = {
-                "key": self.__KeyQuad.fromSerializable(spk["key"]),
-                "signature": base64.b64decode(spk["signature"]),
-                "timestamp": spk["timestamp"]
-            }
-
-        otpks = loadFromFile(os.path.join(self.__directory, "otpks.json"), self.__generateOTPKs, True)
-        if otpks:
-            self.__otpks = [ self.__KeyQuad.fromSerializable(otpk) for otpk in otpks ]
-
-        self.__checkSPKTimestamp()
-        self.__refillOTPKs()
+        self.__generateIK()
+        self.__generateSPK()
+        self.__generateOTPKs()
 
     def __kdf(self, secret_key_material):
         salt = b"\x00" * self.__config.hash_function().digest_size
@@ -226,6 +200,7 @@ class State(object):
 
         if my_otpk:
             self.__otpks.remove(my_otpk)
+            self._changed = True
             self.__refillOTPKs()
 
         return {
@@ -233,22 +208,9 @@ class State(object):
             "sk": sk
         }
 
-    def shutdown(self):
-        """
-        Save configuration and state to files in the directory provided to __init__.
-        """
-
-        self.__config.toFile(os.path.join(self.__directory, "configuration.json"))
-
-        dumpToFile(os.path.join(self.__directory, "ik.json"), self.__ik.toSerializable())
-
-        dumpToFile(os.path.join(self.__directory, "spk.json"), {
-            "key": self.__spk["key"].toSerializable(),
-            "signature": base64.b64encode(self.__spk["signature"]),
-            "timestamp": self.__spk["timestamp"]
-        })
-
-        dumpToFile(os.path.join(self.__directory, "otpks.json"), [ otpk.toSerializable() for otpk in self.__otpks ])
+    @property
+    def spk(self):
+        return self.__spk["key"]
 
     @property
     def changed(self):
