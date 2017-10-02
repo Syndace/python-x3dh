@@ -1,2 +1,4 @@
-from configexceptions import InvalidConfigurationException
-from stateexceptions import SessionInitiationException
+from __future__ import absolute_import
+
+from .configexceptions import InvalidConfigurationException
+from .stateexceptions import SessionInitiationException

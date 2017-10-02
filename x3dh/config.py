@@ -1,8 +1,10 @@
+from __future__ import absolute_import
+
 import base64
 import hashlib
 
-from jsonutils import *
-from exceptions import InvalidConfigurationException
+from .jsonutils import dumpToFile, loadFromFile
+from .exceptions import InvalidConfigurationException
 
 class Config(object):
     HASH_FUNCTIONS = {

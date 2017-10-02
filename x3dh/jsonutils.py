@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import json
 
 def loadFromFile(path, default, execute = False):

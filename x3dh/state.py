@@ -1,17 +1,18 @@
+from __future__ import absolute_import
+
 import base64
 from functools import wraps
 import os
 import time
 
-from config import Config
-from jsonutils import *
-from scci.implementations import KeyQuad25519
-from scci.implementations import KeyQuad448
-from publicbundle import PublicBundle
-from exceptions import SessionInitiationException
+from .config import Config
+from .jsonutils import dumpToFile, loadFromFile
+from .publicbundle import PublicBundle
+from .exceptions import SessionInitiationException
+
+from scci.implementations import KeyQuad25519, KeyQuad448
 
 from hkdf import hkdf_expand, hkdf_extract
-from nacl.utils import random
 
 def changes(f):
     @wraps(f)
@@ -71,7 +72,7 @@ class State(object):
         if self.__config.curve == "X448":
             input_key_material = b"\xFF" * 57
 
-        input_key_material.expand(secret_key_material)
+        input_key_material += secret_key_material
 
         return hkdf_expand(hkdf_extract(salt, input_key_material, self.__config.hash_function), self.__config.info_string, 32, self.__config.hash_function)
 
@@ -151,8 +152,8 @@ class State(object):
         other_ik = self.__KeyQuad(verifying_key = other_public_bundle.ik)
 
         other_spk = {
-            "key": self.__KeyQuad(public_key = other_public_bundle.spk["key"]),
-            "signature": other_public_bundle.spk["signature"]
+            "key": self.__KeyQuad(public_key = other_public_bundle.spk),
+            "signature": other_public_bundle.spk_signature
         }
 
         other_otpks = [ self.__KeyQuad(public_key = otpk) for otpk in other_public_bundle.otpks ]
@@ -165,21 +166,21 @@ class State(object):
 
         ek = self.__KeyQuad.generate()
 
-        dh_concat = self.__ik.getSharedSecret(other_spk["key"]) # DH1
-        dh_concat.extend(ek.getSharedSecret(other_ik))          # DH2
-        dh_concat.extend(ek.getSharedSecret(other_spk["key"]))  # DH3
+        dh1 = self.__ik.getSharedSecret(other_spk["key"])
+        dh2 = ek.getSharedSecret(other_ik)
+        dh3 = ek.getSharedSecret(other_spk["key"])
+        dh4 = b""
 
         otpk = None
         if len(other_otpks) > 0:
-            otpk_index = int(random(1)[0]) % len(other_otpks)
+            otpk_index = ord(os.urandom(1)) % len(other_otpks)
             otpk = other_otpks[otpk_index]
 
-            dh_concat.extend(ek.getSharedSecret(otpk))          # DH4
+            dh4 = ek.getSharedSecret(otpk)
 
-        sk = self.__kdf(dh_concat)
+        sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ad = self.__ik.ver
-        ad.extend(other_ik.ver)
+        ad = self.__ik.ver + other_ik.ver
 
         return {
             "to_other": {
@@ -211,17 +212,17 @@ class State(object):
         elif not allow_no_otpk:
             raise SessionInitiationException("This session initialization data does not contain an OTPK, which is not allowed")
 
-        dh_concat = self.__spk["key"].getSharedSecret(other_ik)       # DH1
-        dh_concat.extend(self.__ik.getSharedSecret(other_ek))         # DH2
-        dh_concat.extend(self.__spk["key"].getSharedSecret(other_ek)) # DH3
+        dh1 = self.__spk["key"].getSharedSecret(other_ik)
+        dh2 = self.__ik.getSharedSecret(other_ek)
+        dh3 = self.__spk["key"].getSharedSecret(other_ek)
+        dh4 = b""
         
         if my_otpk:
-            dh_concat.extend(my_otpk.getSharedSecret(other_ek))       # DH4
+            dh4 = my_otpk.getSharedSecret(other_ek)
 
-        sk = self.__kdf(dh_concat)
+        sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ad = other_ik.ver
-        ad.extend(self.__ik.ver)
+        ad = other_ik.ver + self.__ik.ver
 
         if my_otpk:
             self.__otpks.remove(my_otpk)
