@@ -9,7 +9,7 @@ from .config import Config
 from .publicbundle import PublicBundle
 from .exceptions import SessionInitiationException
 
-from scci.implementations import KeyQuad25519, KeyQuad448
+from scci.implementations import KeyQuad25519
 
 from hkdf import hkdf_expand, hkdf_extract
 
@@ -29,10 +29,10 @@ class State(object):
         # Load the configuration
         self.__config = configuration
 
-        if self.__config.curve == "X25519":
+        if self.__config.curve == "25519":
             self.__KeyQuad = KeyQuad25519
-        if self.__config.curve == "X448":
-            self.__KeyQuad = KeyQuad448
+        #if self.__config.curve == "448":
+        #    self.__KeyQuad = KeyQuad448
 
         self.__generateIK()
         self.__generateSPK()
@@ -41,10 +41,10 @@ class State(object):
     def __kdf(self, secret_key_material):
         salt = b"\x00" * self.__config.hash_function().digest_size
 
-        if self.__config.curve == "X25519":
+        if self.__config.curve == "25519":
             input_key_material = b"\xFF" * 32
-        if self.__config.curve == "X448":
-            input_key_material = b"\xFF" * 57
+        #if self.__config.curve == "448":
+        #    input_key_material = b"\xFF" * 57
 
         input_key_material += secret_key_material
 
@@ -61,11 +61,11 @@ class State(object):
     @changes
     def __generateSPK(self):
         """
-        Generate a new PK and sign its public key using the IK, add the timestamp aswell to allow for periodic rotations.
+        Generate a new PK and sign its encryption key using the IK, add the timestamp aswell to allow for periodic rotations.
         """
 
         key = self.__KeyQuad.generate()
-        signature = self.__ik.sign(key.pub)
+        signature = self.__ik.sign(key.enc)
 
         self.__spk = {
             "key": key,
@@ -82,7 +82,6 @@ class State(object):
 
         if num_otpks == None:
             num_otpks = self.__config.max_num_otpks
-
         
         otpks = []
 
@@ -116,26 +115,26 @@ class State(object):
         """
 
         ik_ver = self.__ik.ver
-        spk_pub = self.__spk["key"].pub
+        spk_enc = self.__spk["key"].enc
         spk_sig = self.__spk["signature"]
-        otpk_pubs = [ otpk.pub for otpk in self.__otpks ]
+        otpk_encs = [ otpk.enc for otpk in self.__otpks ]
 
-        return PublicBundle(ik_ver, spk_pub, spk_sig, otpk_pubs)
+        return PublicBundle(ik_ver, spk_enc, spk_sig, otpk_encs)
 
     def initSessionActive(self, other_public_bundle, allow_zero_otpks = False):
-        other_ik = self.__KeyQuad(verifying_key = other_public_bundle.ik)
+        other_ik = self.__KeyQuad(verification_key = other_public_bundle.ik)
 
         other_spk = {
-            "key": self.__KeyQuad(public_key = other_public_bundle.spk),
+            "key": self.__KeyQuad(encryption_key = other_public_bundle.spk),
             "signature": other_public_bundle.spk_signature
         }
 
-        other_otpks = [ self.__KeyQuad(public_key = otpk) for otpk in other_public_bundle.otpks ]
+        other_otpks = [ self.__KeyQuad(encryption_key = otpk) for otpk in other_public_bundle.otpks ]
 
         if len(other_otpks) == 0 and not allow_zero_otpks:
             raise SessionInitiationException("The other public bundle does not contain any OTPKs, which is not allowed")
 
-        if not other_ik.verify(other_spk["key"].pub, other_spk["signature"]):
+        if not other_ik.verify(other_spk["key"].enc, other_spk["signature"]):
             raise SessionInitiationException("The signature of this public bundle's spk could not be verifified!")
 
         ek = self.__KeyQuad.generate()
@@ -159,25 +158,25 @@ class State(object):
         return {
             "to_other": {
                 "ik": self.__ik.ver,
-                "ek": ek.pub,
-                "otpk": otpk.pub if otpk else None,
-                "spk": other_spk["key"].pub
+                "ek": ek.enc,
+                "otpk": otpk.enc if otpk else None,
+                "spk": other_spk["key"].enc
             },
             "ad": ad,
             "sk": sk
         }
 
     def initSessionPassive(self, session_init_data, allow_no_otpk = False):
-        other_ik = self.__KeyQuad(verifying_key = session_init_data["ik"])
-        other_ek = self.__KeyQuad(public_key = session_init_data["ek"])
+        other_ik = self.__KeyQuad(verification_key = session_init_data["ik"])
+        other_ek = self.__KeyQuad(encryption_key = session_init_data["ek"])
 
-        if self.__spk["key"].pub != session_init_data["spk"]:
+        if self.__spk["key"].enc != session_init_data["spk"]:
             raise SessionInitiationException("The SPK used for this session initialization has been rotated, the session can not be initiated")
 
         my_otpk = None
         if "otpk" in session_init_data:
             for otpk in self.__otpks:
-                if otpk.pub == session_init_data["otpk"]:
+                if otpk.enc == session_init_data["otpk"]:
                     my_otpk = otpk
                     break
 
