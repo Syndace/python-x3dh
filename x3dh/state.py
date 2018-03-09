@@ -10,6 +10,7 @@ from .publicbundle import PublicBundle
 from .exceptions import SessionInitiationException
 
 from scci.implementations import KeyQuad25519
+from xeddsa.implementations import XEdDSA25519
 
 from hkdf import hkdf_expand, hkdf_extract
 
@@ -31,6 +32,7 @@ class State(object):
 
         if self.__config.curve == "25519":
             self.__KeyQuad = KeyQuad25519
+            self.__XEdDSA = XEdDSA25519
         #if self.__config.curve == "448":
         #    self.__KeyQuad = KeyQuad448
 
@@ -65,7 +67,8 @@ class State(object):
         """
 
         key = self.__KeyQuad.generate()
-        signature = self.__ik.sign(key.enc)
+
+        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key.enc, os.urandom(64))
 
         self.__spk = {
             "key": key,
@@ -114,15 +117,15 @@ class State(object):
         Fill a PublicBundle object with the public bundle data of this State.
         """
 
-        ik_ver = self.__ik.ver
+        ik_enc = self.__ik.enc
         spk_enc = self.__spk["key"].enc
         spk_sig = self.__spk["signature"]
         otpk_encs = [ otpk.enc for otpk in self.__otpks ]
 
-        return PublicBundle(ik_ver, spk_enc, spk_sig, otpk_encs)
+        return PublicBundle(ik_enc, spk_enc, spk_sig, otpk_encs)
 
     def initSessionActive(self, other_public_bundle, allow_zero_otpks = False):
-        other_ik = self.__KeyQuad(verification_key = other_public_bundle.ik)
+        other_ik = self.__KeyQuad(encryption_key = other_public_bundle.ik)
 
         other_spk = {
             "key": self.__KeyQuad(encryption_key = other_public_bundle.spk),
@@ -134,7 +137,7 @@ class State(object):
         if len(other_otpks) == 0 and not allow_zero_otpks:
             raise SessionInitiationException("The other public bundle does not contain any OTPKs, which is not allowed")
 
-        if not other_ik.verify(other_spk["key"].enc, other_spk["signature"]):
+        if not self.__XEdDSA(encryption_key = other_ik.enc).verify(other_spk["key"].enc, other_spk["signature"]):
             raise SessionInitiationException("The signature of this public bundle's spk could not be verifified!")
 
         ek = self.__KeyQuad.generate()
@@ -153,11 +156,11 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ad = self.__ik.ver + other_ik.ver
+        ad = self.__ik.enc + other_ik.enc
 
         return {
             "to_other": {
-                "ik": self.__ik.ver,
+                "ik": self.__ik.enc,
                 "ek": ek.enc,
                 "otpk": otpk.enc if otpk else None,
                 "spk": other_spk["key"].enc
@@ -167,7 +170,7 @@ class State(object):
         }
 
     def initSessionPassive(self, session_init_data, allow_no_otpk = False):
-        other_ik = self.__KeyQuad(verification_key = session_init_data["ik"])
+        other_ik = self.__KeyQuad(encryption_key = session_init_data["ik"])
         other_ek = self.__KeyQuad(encryption_key = session_init_data["ek"])
 
         if self.__spk["key"].enc != session_init_data["spk"]:
@@ -195,7 +198,7 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ad = other_ik.ver + self.__ik.ver
+        ad = other_ik.enc + self.__ik.enc
 
         if my_otpk:
             self.__otpks.remove(my_otpk)

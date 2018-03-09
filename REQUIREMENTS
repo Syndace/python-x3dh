@@ -34,3 +34,11 @@ Link: https://github.com/Syndace/scci
 Installation: manual installation (pip might follow soon)
 Last update of this entry: 3rd of March, 2018
 License: MIT
+
+-------------------------------------------------------------------------------
+
+Library: XEdDSA - A python implementation of the XEdDSA signature scheme
+Link: https://github.com/Syndace/python-xeddsa
+Installation: manual installation (pip might follow soon)
+Last update of this entry: 9th of March, 2018
+License: MIT
