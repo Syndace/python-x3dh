@@ -50,7 +50,7 @@ class State(object):
 
         input_key_material += secret_key_material
 
-        return hkdf_expand(hkdf_extract(salt, input_key_material, self.__config.hash_function), self.__config.info_string, 32, self.__config.hash_function)
+        return hkdf_expand(hkdf_extract(salt, input_key_material, self.__config.hash_function), self.__config.info_string.encode("ASCII"), 32, self.__config.hash_function)
 
     @changes
     def __generateIK(self):
