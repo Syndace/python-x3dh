@@ -40,6 +40,10 @@ class State(object):
         self.__generateSPK()
         self.__generateOTPKs()
 
+    def __encodeEncryptionKey(self, encryption_key):
+        if self.__config.curve == "25519":
+            return b'\x05' + encryption_key
+
     def __kdf(self, secret_key_material):
         salt = b"\x00" * self.__config.hash_function().digest_size
 
@@ -68,7 +72,12 @@ class State(object):
 
         key = self.__KeyQuad.generate()
 
-        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key.enc, os.urandom(64))
+        # This part is a little tricky.
+        # Signing the SPK encryption key bytes is NOT enough.
+        # The full serialized version of the key (including the byte identifying the type of the key) must be signed.
+        key_serialized = self.__encodeEncryptionKey(key.enc)
+
+        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key_serialized, os.urandom(64))
 
         self.__spk = {
             "key": key,
@@ -137,7 +146,9 @@ class State(object):
         if len(other_otpks) == 0 and not allow_zero_otpks:
             raise SessionInitiationException("The other public bundle does not contain any OTPKs, which is not allowed")
 
-        if not self.__XEdDSA(encryption_key = other_ik.enc).verify(other_spk["key"].enc, other_spk["signature"]):
+        other_spk_serialized = self.__encodeEncryptionKey(other_spk["key"].enc)
+
+        if not self.__XEdDSA(encryption_key = other_ik.enc).verify(other_spk_serialized, other_spk["signature"]):
             raise SessionInitiationException("The signature of this public bundle's spk could not be verifified!")
 
         ek = self.__KeyQuad.generate()
