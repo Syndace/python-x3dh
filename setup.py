@@ -8,7 +8,7 @@ setup(
     description = "A python implementation of the Extended Triple Diffie-Hellman key agreement protocol.",
     author = "Tim Henkes",
     url = "https://github.com/Syndace/python-x3dh",
-    packages = ["x3dh", "x3dh.exceptions"],
+    packages = ["x3dh", "x3dh.exceptions", "x3dh.implementations"],
     requires = ["scci", "pynacl", "hkdf"],
     provides = ["x3dh"]
 )
