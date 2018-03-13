@@ -22,7 +22,7 @@ def changes(f):
     return wrapper
 
 class State(object):
-    def __init__(self, configuration):
+    def __init__(self, configuration, encryptionKeyEncoder):
         # Track whether this State has somehow changed since loading it
         # This can be used e.g. to republish the public bundle if something has changed
         self._changed = False
@@ -33,16 +33,12 @@ class State(object):
         if self.__config.curve == "25519":
             self.__KeyQuad = KeyQuad25519
             self.__XEdDSA = XEdDSA25519
-        #if self.__config.curve == "448":
-        #    self.__KeyQuad = KeyQuad448
+
+        self.__EncryptionKeyEncoder = encryptionKeyEncoder
 
         self.__generateIK()
         self.__generateSPK()
         self.__generateOTPKs()
-
-    def __encodeEncryptionKey(self, encryption_key):
-        if self.__config.curve == "25519":
-            return b'\x05' + encryption_key
 
     def __kdf(self, secret_key_material):
         salt = b"\x00" * self.__config.hash_function().digest_size
@@ -72,10 +68,7 @@ class State(object):
 
         key = self.__KeyQuad.generate()
 
-        # This part is a little tricky.
-        # Signing the SPK encryption key bytes is NOT enough.
-        # The full serialized version of the key (including the byte identifying the type of the key) must be signed.
-        key_serialized = self.__encodeEncryptionKey(key.enc)
+        key_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(key.enc, self.__config.curve)
 
         signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key_serialized, os.urandom(64))
 
@@ -146,7 +139,7 @@ class State(object):
         if len(other_otpks) == 0 and not allow_zero_otpks:
             raise SessionInitiationException("The other public bundle does not contain any OTPKs, which is not allowed")
 
-        other_spk_serialized = self.__encodeEncryptionKey(other_spk["key"].enc)
+        other_spk_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(other_spk["key"].enc, self.__config.curve)
 
         if not self.__XEdDSA(encryption_key = other_ik.enc).verify(other_spk_serialized, other_spk["signature"]):
             raise SessionInitiationException("The signature of this public bundle's spk could not be verifified!")
