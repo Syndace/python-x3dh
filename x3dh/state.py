@@ -160,7 +160,10 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ad = self.__ik.enc + other_ik.enc
+        ik_enc_serialized       = self.__EncryptionKeyEncoder.encodeEncryptionKey(self.__ik.enc, self.__config.curve)
+        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(other_ik.enc,  self.__config.curve)
+
+        ad = ik_enc_serialized + other_ik_enc_serialized
 
         return {
             "to_other": {
@@ -202,7 +205,10 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ad = other_ik.enc + self.__ik.enc
+        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(other_ik.enc,  self.__config.curve)
+        ik_enc_serialized       = self.__EncryptionKeyEncoder.encodeEncryptionKey(self.__ik.enc, self.__config.curve)
+
+        ad = other_ik_enc_serialized + ik_enc_serialized
 
         if my_otpk:
             self.__otpks.remove(my_otpk)
