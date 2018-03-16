@@ -225,6 +225,18 @@ class State(object):
         return self.__spk["key"]
 
     @property
+    def spk_signature(self):
+        return self.__spk["signature"]
+
+    @property
+    def ik(self):
+        return self.__ik
+
+    @property
+    def otpks(self):
+        return self.__otpks
+
+    @property
     def changed(self):
         """
         Read, whether this State has changed since it was loaded/since this flag was last cleared.
