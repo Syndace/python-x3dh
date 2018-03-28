@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup(
     name = "X3DH",
-    version = "0.1",
+    version = "0.1.0",
     description = "A python implementation of the Extended Triple Diffie-Hellman key agreement protocol.",
     author = "Tim Henkes",
     url = "https://github.com/Syndace/python-x3dh",
