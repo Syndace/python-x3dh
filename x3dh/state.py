@@ -176,7 +176,15 @@ class State(object):
             "sk": sk
         }
 
-    def initSessionPassive(self, session_init_data, allow_no_otpk = False):
+    def initSessionPassive(self, session_init_data, allow_no_otpk = False, keep_otpk = False):
+        """
+        The specification of X3DH dictates to delete the one time pre keys as soon as they are used.
+        This behaviour provides security but may lead to considerable usability downsides in some environments.
+        For that reason the keep_otpk flag exists. If set to True, the one time pre key is not automatically deleted.
+        USE WITH CARE, THIS MAY INTRODUCE SECURITY LEAKS IF USED INCORRECTLY.
+        If you decide set the flag and to keep the otpks, you have to manage deleting them yourself, e.g. by subclassing this class and overriding this method.
+        """
+
         other_ik = self.__KeyQuad(encryption_key = session_init_data["ik"])
         other_ek = self.__KeyQuad(encryption_key = session_init_data["ek"])
 
@@ -210,7 +218,7 @@ class State(object):
 
         ad = other_ik_enc_serialized + ik_enc_serialized
 
-        if my_otpk:
+        if my_otpk and not keep_otpk:
             self.__otpks.remove(my_otpk)
             self._changed = True
             self.__refillOTPKs()
