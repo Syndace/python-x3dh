@@ -36,6 +36,8 @@ class State(object):
 
         self.__EncryptionKeyEncoder = encryptionKeyEncoder
 
+        self.__hidden_otpks = []
+
         self.__generateIK()
         self.__generateSPK()
         self.__generateOTPKs()
@@ -126,6 +128,32 @@ class State(object):
 
         return PublicBundle(ik_enc, spk_enc, spk_sig, otpk_encs)
 
+    @changes
+    def hideFromPublicBundle(self, otpk_enc):
+        """
+        Hide a one-time pre key from the public bundle.
+        """
+        for otpk in self.__otpks:
+            if otpk.enc == otpk_enc:
+                self.__otpks.remove(otpk)
+                self.__hidden_otpks.append(otpk)
+                self.__refillOTPKs()
+
+    @changes
+    def deleteOTPK(self, otpk_enc):
+        """
+        Delete one-time pre key.
+        """
+        for otpk in self.__otpks:
+            if otpk.enc == otpk_enc:
+                return self.__otpks.remove(otpk)
+
+        for otpk in self.__hidden_otpks:
+            if otpk.enc == otpk_enc:
+                return self.__hidden_otpks.remove(otpk)
+
+        self.__refillOTPKs()
+
     def initSessionActive(self, other_public_bundle, allow_zero_otpks = False):
         other_ik = self.__KeyQuad(encryption_key = other_public_bundle.ik)
 
@@ -198,6 +226,11 @@ class State(object):
                     my_otpk = otpk
                     break
 
+            for otpk in self.__hidden_otpks:
+                if otpk.enc == session_init_data["otpk"]:
+                    my_otpk = otpk
+                    break
+
             if not my_otpk:
                 raise SessionInitiationException("The OTPK used for this session initialization has been deleted, the session can not be initiated")
         elif not allow_no_otpk:
@@ -219,9 +252,7 @@ class State(object):
         ad = other_ik_enc_serialized + ik_enc_serialized
 
         if my_otpk and not keep_otpk:
-            self.__otpks.remove(my_otpk)
-            self._changed = True
-            self.__refillOTPKs()
+            self.deleteOTPK(my_otpk.enc)
 
         return {
             "ad": ad,
@@ -243,6 +274,10 @@ class State(object):
     @property
     def otpks(self):
         return self.__otpks
+
+    @property
+    def hidden_otpks(self):
+        return self.__hidden_otpks
 
     @property
     def changed(self):
