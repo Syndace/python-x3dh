@@ -52,7 +52,12 @@ class State(object):
 
         input_key_material += secret_key_material
 
-        return hkdf_expand(hkdf_extract(salt, input_key_material, self.__config.hash_function), self.__config.info_string.encode("ASCII"), 32, self.__config.hash_function)
+        return hkdf_expand(
+            hkdf_extract(salt, input_key_material, self.__config.hash_function),
+            self.__config.info_string.encode("ASCII"),
+            32,
+            self.__config.hash_function
+        )
 
     @changes
     def __generateIK(self):
@@ -65,14 +70,21 @@ class State(object):
     @changes
     def __generateSPK(self):
         """
-        Generate a new PK and sign its encryption key using the IK, add the timestamp aswell to allow for periodic rotations.
+        Generate a new PK and sign its encryption key using the IK,
+        add the timestamp aswell to allow for periodic rotations.
         """
 
         key = self.__KeyQuad.generate()
 
-        key_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(key.enc, self.__config.curve)
+        key_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
+            key.enc,
+            self.__config.curve
+        )
 
-        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key_serialized, os.urandom(64))
+        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(
+            key_serialized,
+            os.urandom(64)
+        )
 
         self.__spk = {
             "key": key,
@@ -84,7 +96,8 @@ class State(object):
     def __generateOTPKs(self, num_otpks = None):
         """
         Generate the given amount of OTPKs.
-        If the value of num_otpks is None, set it to the max_num_otpks value of the configuration.
+        If the value of num_otpks is None, set it to the max_num_otpks value of the
+        configuration.
         """
 
         if num_otpks == None:
@@ -110,7 +123,8 @@ class State(object):
 
     def __refillOTPKs(self):
         """
-        If the amount of available OTPKs fell under the minimum, refills the OTPKs up to the maximum limit again.
+        If the amount of available OTPKs fell under the minimum, refills the OTPKs up to
+        the maximum limit again.
         """
 
         if len(self.__otpks) < self.__config.min_num_otpks:
@@ -162,15 +176,27 @@ class State(object):
             "signature": other_public_bundle.spk_signature
         }
 
-        other_otpks = [ self.__KeyQuad(encryption_key = otpk) for otpk in other_public_bundle.otpks ]
+        other_otpks = [
+            self.__KeyQuad(encryption_key = otpk) for otpk in other_public_bundle.otpks
+        ]
 
         if len(other_otpks) == 0 and not allow_zero_otpks:
-            raise SessionInitiationException("The other public bundle does not contain any OTPKs, which is not allowed")
+            raise SessionInitiationException(
+                "The other public bundle does not contain any OTPKs, which is not allowed"
+            )
 
-        other_spk_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(other_spk["key"].enc, self.__config.curve)
+        other_spk_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
+            other_spk["key"].enc,
+            self.__config.curve
+        )
 
-        if not self.__XEdDSA(encryption_key = other_ik.enc).verify(other_spk_serialized, other_spk["signature"]):
-            raise SessionInitiationException("The signature of this public bundle's spk could not be verifified!")
+        if not self.__XEdDSA(encryption_key = other_ik.enc).verify(
+            other_spk_serialized,
+            other_spk["signature"]
+        ):
+            raise SessionInitiationException(
+                "The signature of this public bundle's spk could not be verifified!"
+            )
 
         ek = self.__KeyQuad.generate()
 
@@ -188,8 +214,15 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ik_enc_serialized       = self.__EncryptionKeyEncoder.encodeEncryptionKey(self.__ik.enc, self.__config.curve)
-        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(other_ik.enc,  self.__config.curve)
+        ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
+            self.__ik.enc,
+            self.__config.curve
+        )
+
+        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
+            other_ik.enc,
+            self.__config.curve
+        )
 
         ad = ik_enc_serialized + other_ik_enc_serialized
 
@@ -204,20 +237,34 @@ class State(object):
             "sk": sk
         }
 
-    def initSessionPassive(self, session_init_data, allow_no_otpk = False, keep_otpk = False):
+    def initSessionPassive(
+        self,
+        session_init_data,
+        allow_no_otpk = False,
+        keep_otpk = False
+    ):
         """
-        The specification of X3DH dictates to delete the one time pre keys as soon as they are used.
-        This behaviour provides security but may lead to considerable usability downsides in some environments.
-        For that reason the keep_otpk flag exists. If set to True, the one time pre key is not automatically deleted.
+        The specification of X3DH dictates to delete the one time pre keys as soon as
+        they are used.
+
+        This behaviour provides security but may lead to considerable usability downsides
+        in some environments.
+
+        For that reason the keep_otpk flag exists.
+        If set to True, the one time pre key is not automatically deleted.
         USE WITH CARE, THIS MAY INTRODUCE SECURITY LEAKS IF USED INCORRECTLY.
-        If you decide set the flag and to keep the otpks, you have to manage deleting them yourself, e.g. by subclassing this class and overriding this method.
+        If you decide set the flag and to keep the otpks, you have to manage deleting them
+        yourself, e.g. by subclassing this class and overriding this method.
         """
 
         other_ik = self.__KeyQuad(encryption_key = session_init_data["ik"])
         other_ek = self.__KeyQuad(encryption_key = session_init_data["ek"])
 
         if self.__spk["key"].enc != session_init_data["spk"]:
-            raise SessionInitiationException("The SPK used for this session initialization has been rotated, the session can not be initiated")
+            raise SessionInitiationException(
+                "The SPK used for this session initialization has been rotated, " +
+                "the session can not be initiated"
+            )
 
         my_otpk = None
         if "otpk" in session_init_data:
@@ -232,9 +279,15 @@ class State(object):
                     break
 
             if not my_otpk:
-                raise SessionInitiationException("The OTPK used for this session initialization has been deleted, the session can not be initiated")
+                raise SessionInitiationException(
+                    "The OTPK used for this session initialization has been deleted, " +
+                    "the session can not be initiated"
+                )
         elif not allow_no_otpk:
-            raise SessionInitiationException("This session initialization data does not contain an OTPK, which is not allowed")
+            raise SessionInitiationException(
+                "This session initialization data does not contain an OTPK, " +
+                "which is not allowed"
+            )
 
         dh1 = self.__spk["key"].getSharedSecret(other_ik)
         dh2 = self.__ik.getSharedSecret(other_ek)
@@ -246,8 +299,15 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(other_ik.enc,  self.__config.curve)
-        ik_enc_serialized       = self.__EncryptionKeyEncoder.encodeEncryptionKey(self.__ik.enc, self.__config.curve)
+        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
+            other_ik.enc,
+            self.__config.curve
+        )
+
+        ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
+            self.__ik.enc,
+            self.__config.curve
+        )
 
         ad = other_ik_enc_serialized + ik_enc_serialized
 
@@ -282,7 +342,9 @@ class State(object):
     @property
     def changed(self):
         """
-        Read, whether this State has changed since it was loaded/since this flag was last cleared.
+        Read, whether this State has changed since it was loaded/since this flag was last
+        cleared.
+
         Clears the flag when reading.
         """
 

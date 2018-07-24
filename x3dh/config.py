@@ -11,21 +11,37 @@ class Config(object):
         "SHA-512": hashlib.sha512
     }
 
-    def __init__(self, info_string, curve, hash_function, spk_timeout, min_num_otpks, max_num_otpks):
+    def __init__(
+        self,
+        info_string,
+        curve,
+        hash_function,
+        spk_timeout,
+        min_num_otpks,
+        max_num_otpks
+    ):
         """
         info_string: An ASCII string identifying the application
         curve: 25519 (448 might follow soon)
-        hash_function: A 256 or 512-bit hash function (e.g. SHA-256 or SHA-512), any key of Config.HASH_FUNCTIONS
+        hash_function:
+            A 256 or 512-bit hash function (e.g. SHA-256 or SHA-512).
+            Any key of Config.HASH_FUNCTIONS.
         spk_timeout: Rotate the SPK after this amount of seconds
         min_num_otpks: Minimum number of OTPKs that must be available
         max_num_otpks: Maximum number of OTPKs that may be available
         """
 
         if not hash_function in Config.HASH_FUNCTIONS:
-            raise InvalidConfigurationException("Invalid hash function parameter specified. Allowed values: Any key of Config.HASH_FUNCTIONS")
+            raise InvalidConfigurationException(
+                "Invalid hash function parameter specified. " +
+                "Allowed values: Any key of Config.HASH_FUNCTIONS"
+            )
 
         if not curve in [ "25519" ]:
-            raise InvalidConfigurationException("Invalid curve parameter specified. Allowed values: 25519 (448 might follow soon)")
+            raise InvalidConfigurationException(
+                "Invalid curve parameter specified. " +
+                "Allowed values: 25519 (448 might follow soon)"
+            )
 
         self.__info_string   = info_string
         self.__curve         = curve
