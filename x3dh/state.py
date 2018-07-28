@@ -1,25 +1,23 @@
 from __future__ import absolute_import
 
-import base64
 from functools import wraps
 import os
 import time
 
-from .config import Config
-from .publicbundle import PublicBundle
 from .exceptions import SessionInitiationException
+from .implementations import EncryptionKeyPairCurve25519
+from .publicbundle import PublicBundle
 
-from scci.implementations import KeyQuad25519
 from xeddsa.implementations import XEdDSA25519
 
 from hkdf import hkdf_expand, hkdf_extract
 
 def changes(f):
     @wraps(f)
-    def wrapper(*args, **kwargs):
+    def _changes(*args, **kwargs):
         args[0]._changed = True
         return f(*args, **kwargs)
-    return wrapper
+    return _changes
 
 class State(object):
     def __init__(self, configuration, encryptionKeyEncoder):
@@ -31,8 +29,11 @@ class State(object):
         self.__config = configuration
 
         if self.__config.curve == "25519":
-            self.__KeyQuad = KeyQuad25519
+            self.__EncryptionKeyPair = EncryptionKeyPairCurve25519
+
             self.__XEdDSA = XEdDSA25519
+        else:
+            raise NotImplementedError
 
         self.__EncryptionKeyEncoder = encryptionKeyEncoder
 
@@ -42,30 +43,17 @@ class State(object):
         self.__generateSPK()
         self.__generateOTPKs()
 
-    def __kdf(self, secret_key_material):
-        salt = b"\x00" * self.__config.hash_function().digest_size
-
-        if self.__config.curve == "25519":
-            input_key_material = b"\xFF" * 32
-        #if self.__config.curve == "448":
-        #    input_key_material = b"\xFF" * 57
-
-        input_key_material += secret_key_material
-
-        return hkdf_expand(
-            hkdf_extract(salt, input_key_material, self.__config.hash_function),
-            self.__config.info_string.encode("ASCII"),
-            32,
-            self.__config.hash_function
-        )
-
+    ##################
+    # key generation #
+    ##################
+    
     @changes
     def __generateIK(self):
         """
         Generate an IK. This should only be done once.
         """
 
-        self.__ik = self.__KeyQuad.generate()
+        self.__ik = self.__EncryptionKeyPair.generate()
     
     @changes
     def __generateSPK(self):
@@ -74,17 +62,14 @@ class State(object):
         add the timestamp aswell to allow for periodic rotations.
         """
 
-        key = self.__KeyQuad.generate()
+        key = self.__EncryptionKeyPair.generate()
 
         key_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
             key.enc,
             self.__config.curve
         )
 
-        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(
-            key_serialized,
-            os.urandom(64)
-        )
+        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key_serialized)
 
         self.__spk = {
             "key": key,
@@ -106,12 +91,37 @@ class State(object):
         otpks = []
 
         for _ in range(num_otpks):
-            otpks.append(self.__KeyQuad.generate())
+            otpks.append(self.__EncryptionKeyPair.generate())
 
         try:
             self.__otpks.extend(otpks)
         except AttributeError:
             self.__otpks = otpks
+
+    ####################
+    # internal helpers #
+    ####################
+
+    def __kdf(self, secret_key_material):
+        salt = b"\x00" * self.__config.hash_function().digest_size
+
+        if self.__config.curve == "25519":
+            input_key_material = b"\xFF" * 32
+        if self.__config.curve == "448":
+            input_key_material = b"\xFF" * 57
+
+        input_key_material += secret_key_material
+
+        return hkdf_expand(
+            hkdf_extract(salt, input_key_material, self.__config.hash_function),
+            self.__config.info_string.encode("ASCII"),
+            32,
+            self.__config.hash_function
+        )
+
+    ##################
+    # key management #
+    ##################
 
     def __checkSPKTimestamp(self):
         """
@@ -130,23 +140,14 @@ class State(object):
         if len(self.__otpks) < self.__config.min_num_otpks:
             self.__generateOTPKs(self.__config.max_num_otpks - len(self.__otpks))
 
-    def getPublicBundle(self):
-        """
-        Fill a PublicBundle object with the public bundle data of this State.
-        """
-
-        ik_enc = self.__ik.enc
-        spk_enc = self.__spk["key"].enc
-        spk_sig = self.__spk["signature"]
-        otpk_encs = [ otpk.enc for otpk in self.__otpks ]
-
-        return PublicBundle(ik_enc, spk_enc, spk_sig, otpk_encs)
-
     @changes
     def hideFromPublicBundle(self, otpk_enc):
         """
         Hide a one-time pre key from the public bundle.
         """
+
+        self.__checkSPKTimestamp()
+
         for otpk in self.__otpks:
             if otpk.enc == otpk_enc:
                 self.__otpks.remove(otpk)
@@ -158,26 +159,68 @@ class State(object):
         """
         Delete one-time pre key.
         """
+
+        self.__checkSPKTimestamp()
+
         for otpk in self.__otpks:
             if otpk.enc == otpk_enc:
-                return self.__otpks.remove(otpk)
+                self.__otpks.remove(otpk)
 
         for otpk in self.__hidden_otpks:
             if otpk.enc == otpk_enc:
-                return self.__hidden_otpks.remove(otpk)
+                self.__hidden_otpks.remove(otpk)
 
         self.__refillOTPKs()
 
+    ############################
+    # public bundle management #
+    ############################
+
+    def getPublicBundle(self):
+        """
+        Fill a PublicBundle object with the public bundle data of this State.
+        """
+
+        self.__checkSPKTimestamp()
+
+        ik_enc  = self.__ik.enc
+        spk_enc = self.__spk["key"].enc
+        spk_sig = self.__spk["signature"]
+        otpk_encs = [ otpk.enc for otpk in self.__otpks ]
+
+        return PublicBundle(ik_enc, spk_enc, spk_sig, otpk_encs)
+
+    @property
+    def changed(self):
+        """
+        Read, whether this State has changed since it was loaded/since this flag was last
+        cleared.
+
+        Clears the flag when reading.
+        """
+
+        self.__checkSPKTimestamp()
+
+        changed = self._changed
+        self._changed = False
+        return changed
+
+    ######################
+    # session initiation #
+    ######################
+
     def initSessionActive(self, other_public_bundle, allow_zero_otpks = False):
-        other_ik = self.__KeyQuad(encryption_key = other_public_bundle.ik)
+        self.__checkSPKTimestamp()
+
+        other_ik = self.__EncryptionKeyPair(enc = other_public_bundle.ik)
 
         other_spk = {
-            "key": self.__KeyQuad(encryption_key = other_public_bundle.spk),
+            "key": self.__EncryptionKeyPair(enc = other_public_bundle.spk),
             "signature": other_public_bundle.spk_signature
         }
 
         other_otpks = [
-            self.__KeyQuad(encryption_key = otpk) for otpk in other_public_bundle.otpks
+            self.__EncryptionKeyPair(enc = otpk) for otpk in other_public_bundle.otpks
         ]
 
         if len(other_otpks) == 0 and not allow_zero_otpks:
@@ -195,10 +238,10 @@ class State(object):
             other_spk["signature"]
         ):
             raise SessionInitiationException(
-                "The signature of this public bundle's spk could not be verifified!"
+                "The signature of this public bundle's spk could not be verifified"
             )
 
-        ek = self.__KeyQuad.generate()
+        ek = self.__EncryptionKeyPair.generate()
 
         dh1 = self.__ik.getSharedSecret(other_spk["key"])
         dh2 = ek.getSharedSecret(other_ik)
@@ -257,8 +300,10 @@ class State(object):
         yourself, e.g. by subclassing this class and overriding this method.
         """
 
-        other_ik = self.__KeyQuad(encryption_key = session_init_data["ik"])
-        other_ek = self.__KeyQuad(encryption_key = session_init_data["ek"])
+        self.__checkSPKTimestamp()
+
+        other_ik = self.__EncryptionKeyPair(enc = session_init_data["ik"])
+        other_ek = self.__EncryptionKeyPair(enc = session_init_data["ek"])
 
         if self.__spk["key"].enc != session_init_data["spk"]:
             raise SessionInitiationException(
@@ -321,33 +366,30 @@ class State(object):
 
     @property
     def spk(self):
+        self.__checkSPKTimestamp()
+
         return self.__spk["key"]
 
     @property
     def spk_signature(self):
+        self.__checkSPKTimestamp()
+
         return self.__spk["signature"]
 
     @property
     def ik(self):
+        self.__checkSPKTimestamp()
+
         return self.__ik
 
     @property
     def otpks(self):
+        self.__checkSPKTimestamp()
+
         return self.__otpks
 
     @property
     def hidden_otpks(self):
+        self.__checkSPKTimestamp()
+
         return self.__hidden_otpks
-
-    @property
-    def changed(self):
-        """
-        Read, whether this State has changed since it was loaded/since this flag was last
-        cleared.
-
-        Clears the flag when reading.
-        """
-
-        changed = self._changed
-        self._changed = False
-        return changed

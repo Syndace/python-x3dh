@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 
-import base64
 import hashlib
 
 from .exceptions import InvalidConfigurationException

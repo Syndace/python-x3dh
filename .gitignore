@@ -1,3 +1,8 @@
-*.pyc
-*.tmp
 build/
+dist/
+X3DH.egg-info/
+*.pyc
+
+.pytest_cache/
+
+*.tmp
