@@ -9,6 +9,4 @@ This python library offers an implementation of the Extended Triple Diffie-Hellm
 
 The goal is to provide a configurable and independent implementation of the protocol, while keeping the structure close to the specification.
 
-This library is currently in a very early state, most of the code has not been tested at all, there are probably bugs.
-
-You can find usage examples in the repository of the [OMEMO library](https://github.com/Syndace/python-omemo), which uses this lib.
+This library was developed as part of [python-omemo](https://github.com/Syndace/python-omemo), a pretty cool end-to-end encryption protocol.
