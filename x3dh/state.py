@@ -1,9 +1,12 @@
 from __future__ import absolute_import
 
+import base64
 from functools import wraps
+import hashlib
 import os
 import time
 
+from .exceptions import InvalidConfigurationException
 from .exceptions import SessionInitiationException
 from .implementations import EncryptionKeyPairCurve25519
 from .publicbundle import PublicBundle
@@ -20,28 +23,133 @@ def changes(f):
     return _changes
 
 class State(object):
-    def __init__(self, configuration, encryptionKeyEncoder):
+    HASH_FUNCTIONS = {
+        "SHA-256": hashlib.sha256,
+        "SHA-512": hashlib.sha512
+    }
+
+    def __init__(
+        self,
+        info_string,
+        curve,
+        hash_function,
+        spk_timeout,
+        min_num_otpks,
+        max_num_otpks,
+        encryption_key_encoder_class
+    ):
+        """
+        info_string: An ASCII string identifying the application
+        curve: 25519 (448 might follow soon)
+        hash_function:
+            A 256 or 512-bit hash function (e.g. SHA-256 or SHA-512).
+            Any key of State.HASH_FUNCTIONS.
+        spk_timeout: Rotate the SPK after this amount of seconds
+        min_num_otpks: Minimum number of OTPKs that must be available
+        max_num_otpks: Maximum number of OTPKs that may be available
+        encryption_key_encoder_class: A sub class of EncryptionKeyEncoder
+        """
+
+        if not hash_function in State.HASH_FUNCTIONS:
+            raise InvalidConfigurationException(
+                "Invalid hash function parameter specified. " +
+                "Allowed values: Any key of State.HASH_FUNCTIONS"
+            )
+
+        if not curve in [ "25519" ]:
+            raise InvalidConfigurationException(
+                "Invalid curve parameter specified. " +
+                "Allowed values: 25519 (448 might follow soon)"
+            )
+
+        self.__info_string   = info_string
+        self.__curve         = curve
+        self.__hash_function = State.HASH_FUNCTIONS[hash_function]
+        self.__spk_timeout   = spk_timeout
+        self.__min_num_otpks = min_num_otpks
+        self.__max_num_otpks = max_num_otpks
+        self.__EncryptionKeyEncoder = encryption_key_encoder_class
+
+        # Load the configuration
+        if self.__curve == "25519":
+            self.__EncryptionKeyPair = EncryptionKeyPairCurve25519
+
+            self.__XEdDSA = XEdDSA25519
+
         # Track whether this State has somehow changed since loading it
         # This can be used e.g. to republish the public bundle if something has changed
         self._changed = False
 
-        # Load the configuration
-        self.__config = configuration
-
-        if self.__config.curve == "25519":
-            self.__EncryptionKeyPair = EncryptionKeyPairCurve25519
-
-            self.__XEdDSA = XEdDSA25519
-        else:
-            raise NotImplementedError
-
-        self.__EncryptionKeyEncoder = encryptionKeyEncoder
-
+        # Keep a list of OTPKs that have been hidden from the public bundle.
         self.__hidden_otpks = []
 
         self.__generateIK()
         self.__generateSPK()
         self.__generateOTPKs()
+
+    #################
+    # serialization #
+    #################
+
+    def serialize(self):
+        """
+        Return a serializable Python structure, which contains all the state information
+        of this object.
+        Use together with the fromSerialized method.
+        Here, "serializable" means, that the structure consists of any combination of the
+        following types:
+        - dictionaries
+        - lists
+        - strings
+        - integers
+        - floats
+        - booleans
+        - None
+        """
+
+        spk = {
+            "key"       : self.__spk["key"].serialize(),
+            "signature" : base64.b64encode(self.__spk["signature"]).decode("US-ASCII"),
+            "timestamp" : self.__spk["timestamp"]
+        }
+
+        return {
+            "changed"      : self._changed,
+            "ik"           : self.__ik.serialize(),
+            "spk"          : spk,
+            "otpks"        : [ x.serialize() for x in self.__otpks ],
+            "hidden_otpks" : [ x.serialize() for x in self.__hidden_otpks ]
+        }
+
+    @classmethod
+    def fromSerialized(cls, serialized, *args, **kwargs):
+        """
+        Return a new instance that was set to the state that was saved into the serialized
+        object.
+        Use together with the serialize method.
+        Notice: You have to pass all positional parameters required by the constructor of
+        the class you call fromSerialized on.
+        """
+
+        self = cls(*args, **kwargs)
+
+        parseKeyPair = self.__EncryptionKeyPair.fromSerialized
+
+        self._changed = serialized["changed"]
+
+        self.__ik = parseKeyPair(serialized["ik"])
+
+        spk = serialized["spk"]
+        self.__spk = {
+            "key"       : parseKeyPair(spk["key"]),
+            "signature" : base64.b64decode(spk["signature"].encode("US-ASCII")),
+            "timestamp" : spk["timestamp"]
+        }
+
+        self.__otpks        = [ parseKeyPair(x) for x in serialized["otpks"] ]
+        self.__hidden_otpks = [ parseKeyPair(x) for x in serialized["hidden_otpks"] ]
+
+        return self
 
     ##################
     # key generation #
@@ -66,7 +174,7 @@ class State(object):
 
         key_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
             key.enc,
-            self.__config.curve
+            self.__curve
         )
 
         signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key_serialized)
@@ -86,7 +194,7 @@ class State(object):
         """
 
         if num_otpks == None:
-            num_otpks = self.__config.max_num_otpks
+            num_otpks = self.__max_num_otpks
         
         otpks = []
 
@@ -103,20 +211,20 @@ class State(object):
     ####################
 
     def __kdf(self, secret_key_material):
-        salt = b"\x00" * self.__config.hash_function().digest_size
+        salt = b"\x00" * self.__hash_function().digest_size
 
-        if self.__config.curve == "25519":
+        if self.__curve == "25519":
             input_key_material = b"\xFF" * 32
-        if self.__config.curve == "448":
+        if self.__curve == "448":
             input_key_material = b"\xFF" * 57
 
         input_key_material += secret_key_material
 
         return hkdf_expand(
-            hkdf_extract(salt, input_key_material, self.__config.hash_function),
-            self.__config.info_string.encode("ASCII"),
+            hkdf_extract(salt, input_key_material, self.__hash_function),
+            self.__info_string.encode("ASCII"),
             32,
-            self.__config.hash_function
+            self.__hash_function
         )
 
     ##################
@@ -128,7 +236,7 @@ class State(object):
         Check whether the SPK is too old and generate a new one in that case.
         """
 
-        if time.time() - self.__spk["timestamp"] > self.__config.spk_timeout:
+        if time.time() - self.__spk["timestamp"] > self.__spk_timeout:
             self.__generateSPK()
 
     def __refillOTPKs(self):
@@ -137,8 +245,10 @@ class State(object):
         the maximum limit again.
         """
 
-        if len(self.__otpks) < self.__config.min_num_otpks:
-            self.__generateOTPKs(self.__config.max_num_otpks - len(self.__otpks))
+        remainingOTPKs = len(self.__otpks)
+
+        if remainingOTPKs < self.__min_num_otpks:
+            self.__generateOTPKs(self.__max_num_otpks - remainingOTPKs)
 
     @changes
     def hideFromPublicBundle(self, otpk_enc):
@@ -230,7 +340,7 @@ class State(object):
 
         other_spk_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
             other_spk["key"].enc,
-            self.__config.curve
+            self.__curve
         )
 
         if not self.__XEdDSA(encryption_key = other_ik.enc).verify(
@@ -259,12 +369,12 @@ class State(object):
 
         ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
             self.__ik.enc,
-            self.__config.curve
+            self.__curve
         )
 
         other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
             other_ik.enc,
-            self.__config.curve
+            self.__curve
         )
 
         ad = ik_enc_serialized + other_ik_enc_serialized
@@ -346,12 +456,12 @@ class State(object):
 
         other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
             other_ik.enc,
-            self.__config.curve
+            self.__curve
         )
 
         ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
             self.__ik.enc,
-            self.__config.curve
+            self.__curve
         )
 
         ad = other_ik_enc_serialized + ik_enc_serialized

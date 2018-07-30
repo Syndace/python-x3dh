@@ -1,3 +1,7 @@
+from __future__ import absolute_import
+
+import base64
+
 from ..encryptionkeypair import EncryptionKeyPair
 
 from ..exceptions import MissingKeyException
@@ -37,13 +41,39 @@ class EncryptionKeyPairCurve25519(EncryptionKeyPair):
     def generate(cls):
         return cls(dec = bytes(bytearray(XEdDSA25519.generateDecryptionKey())))
 
+    def serialize(self):
+        enc = self.enc
+        dec = self.dec
+
+        return {
+            "super" : super(EncryptionKeyPairCurve25519, self).serialize(),
+            "enc"   : None if enc == None else base64.b64encode(enc).decode("US-ASCII"),
+            "dec"   : None if dec == None else base64.b64encode(dec).decode("US-ASCII")
+        }
+
+    @classmethod
+    def fromSerialized(cls, serialized, *args, **kwargs):
+        self = super(EncryptionKeyPairCurve25519, cls).fromSerialized(
+            serialized["super"],
+            *args,
+            **kwargs
+        )
+
+        enc = serialized["enc"]
+        dec = serialized["dec"]
+
+        self.__enc = None if enc == None else base64.b64decode(enc.encode("US-ASCII"))
+        self.__dec = None if dec == None else base64.b64decode(dec.encode("US-ASCII"))
+
+        return self
+
     @property
     def enc(self):
-        return bytes(self.__enc) if self.__enc else None
+        return None if self.__enc == None else bytes(self.__enc)
 
     @property
     def dec(self):
-        return bytes(self.__dec) if self.__dec else None
+        return None if self.__dec == None else bytes(self.__dec)
 
     def encrypt(self, data, other):
         return bytes(self.__getBox(other).encrypt(data, random(crypto_box_NONCEBYTES)))
