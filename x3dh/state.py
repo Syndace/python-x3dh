@@ -391,7 +391,7 @@ class State(object):
             self.__curve
         )
 
-        ad = other_ik_enc_serialized + ik_enc_serialized
+        ad = ik_enc_serialized + other_ik_enc_serialized
 
         return {
             "to_other": {
