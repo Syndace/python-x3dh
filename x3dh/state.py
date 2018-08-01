@@ -319,7 +319,12 @@ class State(object):
     # session initiation #
     ######################
 
-    def initSessionActive(self, other_public_bundle, allow_zero_otpks = False):
+    def initSessionActive(
+        self,
+        other_public_bundle,
+        allow_zero_otpks = False,
+        _DEBUG_ek = None
+    ):
         self.__checkSPKTimestamp()
 
         other_ik = self.__EncryptionKeyPair(enc = other_public_bundle.ik)
@@ -351,7 +356,16 @@ class State(object):
                 "The signature of this public bundle's spk could not be verifified"
             )
 
-        ek = self.__EncryptionKeyPair.generate()
+        if _DEBUG_ek == None:
+            ek = self.__EncryptionKeyPair.generate()
+        else:
+            import logging
+
+            logging.getLogger("x3dh.State").error(
+                "WARNING: RUNNING UNSAFE DEBUG-ONLY OPERATION"
+            )
+
+            ek = _DEBUG_ek
 
         dh1 = self.__ik.getSharedSecret(other_spk["key"])
         dh2 = ek.getSharedSecret(other_ik)
@@ -377,7 +391,7 @@ class State(object):
             self.__curve
         )
 
-        ad = ik_enc_serialized + other_ik_enc_serialized
+        ad = other_ik_enc_serialized + ik_enc_serialized
 
         return {
             "to_other": {
