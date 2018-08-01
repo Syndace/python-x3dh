@@ -1,3 +1,5 @@
+from __future__ import division
+
 import json
 import time
 
@@ -52,7 +54,10 @@ def test_x3dh():
         previous = len(state_bob.getPublicBundle().otpks)
 
         assert session_init_data["sk"] == other_session_data["sk"]
-        assert session_init_data["ad"] == other_session_data["ad"]
+
+        ad_len = len(session_init_data["ad"]) // 2
+        assert session_init_data["ad"][:ad_len] == other_session_data["ad"][ad_len:]
+        assert session_init_data["ad"][ad_len:] == other_session_data["ad"][:ad_len]
 
 def test_spk_rotation():
     state = ExampleStateB()
@@ -84,7 +89,10 @@ def test_serialization():
         previous = len(state_bob.getPublicBundle().otpks)
 
         assert session_init_data["sk"] == other_session_data["sk"]
-        assert session_init_data["ad"] == other_session_data["ad"]
+
+        ad_len = len(session_init_data["ad"]) // 2
+        assert session_init_data["ad"][:ad_len] == other_session_data["ad"][ad_len:]
+        assert session_init_data["ad"][ad_len:] == other_session_data["ad"][:ad_len]
 
     state_alice_serialized = json.dumps(state_alice.serialize())
     state_bob_serialized   = json.dumps(state_bob.serialize())
@@ -106,4 +114,7 @@ def test_serialization():
         previous = len(state_bob.getPublicBundle().otpks)
 
         assert session_init_data["sk"] == other_session_data["sk"]
-        assert session_init_data["ad"] == other_session_data["ad"]
+
+        ad_len = len(session_init_data["ad"]) // 2
+        assert session_init_data["ad"][:ad_len] == other_session_data["ad"][ad_len:]
+        assert session_init_data["ad"][ad_len:] == other_session_data["ad"][:ad_len]

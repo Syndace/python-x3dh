@@ -5,7 +5,7 @@ with open("README.md") as f:
 
 setup(
     name = "X3DH",
-    version = "0.4.1",
+    version = "0.4.2",
     description = "A python implementation of the Extended Triple Diffie-Hellman key agreement protocol.",
     long_description = long_description,
     long_description_content_type = "text/markdown",
