@@ -177,7 +177,7 @@ class State(object):
             self.__curve
         )
 
-        signature = self.__XEdDSA(decryption_key = self.__ik.dec).sign(key_serialized)
+        signature = self.__XEdDSA(mont_priv = self.__ik.dec).sign(key_serialized)
 
         self.__spk = {
             "key": key,
@@ -348,7 +348,7 @@ class State(object):
             self.__curve
         )
 
-        if not self.__XEdDSA(encryption_key = other_ik.enc).verify(
+        if not self.__XEdDSA(mont_pub = other_ik.enc).verify(
             other_spk_serialized,
             other_spk["signature"]
         ):

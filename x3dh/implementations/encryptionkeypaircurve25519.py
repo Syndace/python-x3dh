@@ -39,7 +39,7 @@ class EncryptionKeyPairCurve25519(EncryptionKeyPair):
 
     @classmethod
     def generate(cls):
-        return cls(dec = bytes(bytearray(XEdDSA25519.generateDecryptionKey())))
+        return cls(dec = XEdDSA25519.generate_mont_priv())
 
     def serialize(self):
         enc = self.enc

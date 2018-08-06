@@ -5,7 +5,7 @@ with open("README.md") as f:
 
 setup(
     name = "X3DH",
-    version = "0.4.3",
+    version = "0.4.4",
     description = "A python implementation of the Extended Triple Diffie-Hellman key agreement protocol.",
     long_description = long_description,
     long_description_content_type = "text/markdown",
@@ -14,7 +14,7 @@ setup(
     author_email = "tim@cifg.io",
     license = "MIT",
     packages = find_packages(),
-    install_requires = [ "hkdf==0.0.3", "XEdDSA>=0.3.6" ],
+    install_requires = [ "hkdf==0.0.3", "XEdDSA>=0.4.0" ],
     python_requires  = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4",
     zip_safe = True,
     classifiers = [
