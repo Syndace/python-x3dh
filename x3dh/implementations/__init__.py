@@ -1,3 +1,3 @@
 from __future__ import absolute_import
 
-from .encryptionkeypaircurve25519 import EncryptionKeyPairCurve25519
+from .keypaircurve25519 import KeyPairCurve25519

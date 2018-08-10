@@ -8,7 +8,7 @@ import time
 
 from .exceptions import InvalidConfigurationException
 from .exceptions import SessionInitiationException
-from .implementations import EncryptionKeyPairCurve25519
+from .implementations import KeyPairCurve25519
 from .publicbundle import PublicBundle
 
 from xeddsa.implementations import XEdDSA25519
@@ -72,7 +72,7 @@ class State(object):
 
         # Load the configuration
         if self.__curve == "25519":
-            self.__EncryptionKeyPair = EncryptionKeyPairCurve25519
+            self.__EncryptionKeyPair = KeyPairCurve25519
 
             self.__XEdDSA = XEdDSA25519
 
