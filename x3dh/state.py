@@ -36,7 +36,7 @@ class State(object):
         spk_timeout,
         min_num_otpks,
         max_num_otpks,
-        encryption_key_encoder_class
+        public_key_encoder_class
     ):
         """
         info_string: An ASCII string identifying the application
@@ -47,7 +47,7 @@ class State(object):
         spk_timeout: Rotate the SPK after this amount of seconds
         min_num_otpks: Minimum number of OTPKs that must be available
         max_num_otpks: Maximum number of OTPKs that may be available
-        encryption_key_encoder_class: A sub class of EncryptionKeyEncoder
+        public_key_encoder_class: A sub class of PublicKeyEncoder
         """
 
         if not hash_function in State.HASH_FUNCTIONS:
@@ -68,11 +68,11 @@ class State(object):
         self.__spk_timeout   = spk_timeout
         self.__min_num_otpks = min_num_otpks
         self.__max_num_otpks = max_num_otpks
-        self.__EncryptionKeyEncoder = encryption_key_encoder_class
+        self.__PublicKeyEncoder = public_key_encoder_class
 
         # Load the configuration
         if self.__curve == "25519":
-            self.__EncryptionKeyPair = KeyPairCurve25519
+            self.__KeyPair = KeyPairCurve25519
 
             self.__XEdDSA = XEdDSA25519
 
@@ -133,7 +133,7 @@ class State(object):
 
         self = cls(*args, **kwargs)
 
-        parseKeyPair = self.__EncryptionKeyPair.fromSerialized
+        parseKeyPair = self.__KeyPair.fromSerialized
 
         self._changed = serialized["changed"]
 
@@ -161,23 +161,23 @@ class State(object):
         Generate an IK. This should only be done once.
         """
 
-        self.__ik = self.__EncryptionKeyPair.generate()
+        self.__ik = self.__KeyPair()
     
     @changes
     def __generateSPK(self):
         """
-        Generate a new PK and sign its encryption key using the IK,
-        add the timestamp aswell to allow for periodic rotations.
+        Generate a new PK and sign its public key using the IK, add the timestamp aswell
+        to allow for periodic rotations.
         """
 
-        key = self.__EncryptionKeyPair.generate()
+        key = self.__KeyPair()
 
-        key_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
-            key.enc,
+        key_serialized = self.__PublicKeyEncoder.encodePublicKey(
+            key.pub,
             self.__curve
         )
 
-        signature = self.__XEdDSA(mont_priv = self.__ik.dec).sign(key_serialized)
+        signature = self.__XEdDSA(mont_priv = self.__ik.priv).sign(key_serialized)
 
         self.__spk = {
             "key": key,
@@ -199,7 +199,7 @@ class State(object):
         otpks = []
 
         for _ in range(num_otpks):
-            otpks.append(self.__EncryptionKeyPair.generate())
+            otpks.append(self.__KeyPair())
 
         try:
             self.__otpks.extend(otpks)
@@ -251,7 +251,7 @@ class State(object):
             self.__generateOTPKs(self.__max_num_otpks - remainingOTPKs)
 
     @changes
-    def hideFromPublicBundle(self, otpk_enc):
+    def hideFromPublicBundle(self, otpk_pub):
         """
         Hide a one-time pre key from the public bundle.
         """
@@ -259,13 +259,13 @@ class State(object):
         self.__checkSPKTimestamp()
 
         for otpk in self.__otpks:
-            if otpk.enc == otpk_enc:
+            if otpk.pub == otpk_pub:
                 self.__otpks.remove(otpk)
                 self.__hidden_otpks.append(otpk)
                 self.__refillOTPKs()
 
     @changes
-    def deleteOTPK(self, otpk_enc):
+    def deleteOTPK(self, otpk_pub):
         """
         Delete one-time pre key.
         """
@@ -273,11 +273,11 @@ class State(object):
         self.__checkSPKTimestamp()
 
         for otpk in self.__otpks:
-            if otpk.enc == otpk_enc:
+            if otpk.pub == otpk_pub:
                 self.__otpks.remove(otpk)
 
         for otpk in self.__hidden_otpks:
-            if otpk.enc == otpk_enc:
+            if otpk.pub == otpk_pub:
                 self.__hidden_otpks.remove(otpk)
 
         self.__refillOTPKs()
@@ -293,12 +293,12 @@ class State(object):
 
         self.__checkSPKTimestamp()
 
-        ik_enc  = self.__ik.enc
-        spk_enc = self.__spk["key"].enc
+        ik_pub  = self.__ik.pub
+        spk_pub = self.__spk["key"].pub
         spk_sig = self.__spk["signature"]
-        otpk_encs = [ otpk.enc for otpk in self.__otpks ]
+        otpk_pubs = [ otpk.pub for otpk in self.__otpks ]
 
-        return PublicBundle(ik_enc, spk_enc, spk_sig, otpk_encs)
+        return PublicBundle(ik_pub, spk_pub, spk_sig, otpk_pubs)
 
     @property
     def changed(self):
@@ -327,15 +327,15 @@ class State(object):
     ):
         self.__checkSPKTimestamp()
 
-        other_ik = self.__EncryptionKeyPair(enc = other_public_bundle.ik)
+        other_ik = self.__KeyPair(pub = other_public_bundle.ik)
 
         other_spk = {
-            "key": self.__EncryptionKeyPair(enc = other_public_bundle.spk),
+            "key": self.__KeyPair(pub = other_public_bundle.spk),
             "signature": other_public_bundle.spk_signature
         }
 
         other_otpks = [
-            self.__EncryptionKeyPair(enc = otpk) for otpk in other_public_bundle.otpks
+            self.__KeyPair(pub = otpk) for otpk in other_public_bundle.otpks
         ]
 
         if len(other_otpks) == 0 and not allow_zero_otpks:
@@ -343,12 +343,12 @@ class State(object):
                 "The other public bundle does not contain any OTPKs, which is not allowed"
             )
 
-        other_spk_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
-            other_spk["key"].enc,
+        other_spk_serialized = self.__PublicKeyEncoder.encodePublicKey(
+            other_spk["key"].pub,
             self.__curve
         )
 
-        if not self.__XEdDSA(mont_pub = other_ik.enc).verify(
+        if not self.__XEdDSA(mont_pub = other_ik.pub).verify(
             other_spk_serialized,
             other_spk["signature"]
         ):
@@ -357,7 +357,7 @@ class State(object):
             )
 
         if _DEBUG_ek == None:
-            ek = self.__EncryptionKeyPair.generate()
+            ek = self.__KeyPair()
         else:
             import logging
 
@@ -381,24 +381,24 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
-            self.__ik.enc,
+        ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
+            self.__ik.pub,
             self.__curve
         )
 
-        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
-            other_ik.enc,
+        other_ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
+            other_ik.pub,
             self.__curve
         )
 
-        ad = ik_enc_serialized + other_ik_enc_serialized
+        ad = ik_pub_serialized + other_ik_pub_serialized
 
         return {
             "to_other": {
-                "ik": self.__ik.enc,
-                "ek": ek.enc,
-                "otpk": otpk.enc if otpk else None,
-                "spk": other_spk["key"].enc
+                "ik": self.__ik.pub,
+                "ek": ek.pub,
+                "otpk": otpk.pub if otpk else None,
+                "spk": other_spk["key"].pub
             },
             "ad": ad,
             "sk": sk
@@ -426,10 +426,10 @@ class State(object):
 
         self.__checkSPKTimestamp()
 
-        other_ik = self.__EncryptionKeyPair(enc = session_init_data["ik"])
-        other_ek = self.__EncryptionKeyPair(enc = session_init_data["ek"])
+        other_ik = self.__KeyPair(pub = session_init_data["ik"])
+        other_ek = self.__KeyPair(pub = session_init_data["ek"])
 
-        if self.__spk["key"].enc != session_init_data["spk"]:
+        if self.__spk["key"].pub != session_init_data["spk"]:
             raise SessionInitiationException(
                 "The SPK used for this session initialization has been rotated, " +
                 "the session can not be initiated"
@@ -438,12 +438,12 @@ class State(object):
         my_otpk = None
         if "otpk" in session_init_data:
             for otpk in self.__otpks:
-                if otpk.enc == session_init_data["otpk"]:
+                if otpk.pub == session_init_data["otpk"]:
                     my_otpk = otpk
                     break
 
             for otpk in self.__hidden_otpks:
-                if otpk.enc == session_init_data["otpk"]:
+                if otpk.pub == session_init_data["otpk"]:
                     my_otpk = otpk
                     break
 
@@ -468,20 +468,20 @@ class State(object):
 
         sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
 
-        other_ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
-            other_ik.enc,
+        other_ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
+            other_ik.pub,
             self.__curve
         )
 
-        ik_enc_serialized = self.__EncryptionKeyEncoder.encodeEncryptionKey(
-            self.__ik.enc,
+        ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
+            self.__ik.pub,
             self.__curve
         )
 
-        ad = other_ik_enc_serialized + ik_enc_serialized
+        ad = other_ik_pub_serialized + ik_pub_serialized
 
         if my_otpk and not keep_otpk:
-            self.deleteOTPK(my_otpk.enc)
+            self.deleteOTPK(my_otpk.pub)
 
         return {
             "ad": ad,

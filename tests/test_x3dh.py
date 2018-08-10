@@ -5,10 +5,10 @@ import time
 
 import x3dh
 
-class ExampleEncryptionKeyEncoder(x3dh.EncryptionKeyEncoder):
+class ExamplePublicKeyEncoder(x3dh.PublicKeyEncoder):
     @staticmethod
-    def encodeEncryptionKey(encryption_key, encryption_key_type):
-        return b"\x42" + encryption_key + b"\x13\x37"
+    def encodePublicKey(key, key_type):
+        return b"\x42" + key + b"\x13\x37" + key_type.encode("US-ASCII")
 
 class ExampleStateA(x3dh.State):
     def __init__(self):
@@ -19,7 +19,7 @@ class ExampleStateA(x3dh.State):
             spk_timeout = 7 * 24 * 60 * 60,
             min_num_otpks = 20,
             max_num_otpks = 100,
-            encryption_key_encoder_class = ExampleEncryptionKeyEncoder
+            public_key_encoder_class = ExamplePublicKeyEncoder
         )
 
 class ExampleStateB(x3dh.State):
@@ -31,7 +31,7 @@ class ExampleStateB(x3dh.State):
             spk_timeout = 2,
             min_num_otpks = 5,
             max_num_otpks = 10,
-            encryption_key_encoder_class = ExampleEncryptionKeyEncoder
+            public_key_encoder_class = ExamplePublicKeyEncoder
         )
 
 def test_x3dh():
