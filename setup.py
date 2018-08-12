@@ -1,12 +1,22 @@
 from setuptools import setup, find_packages
 
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "x3dh"))
+
+import version
+
 with open("README.md") as f:
     long_description = f.read()
 
 setup(
     name = "X3DH",
-    version = "0.4.4",
-    description = "A python implementation of the Extended Triple Diffie-Hellman key agreement protocol.",
+    version = version.__version__,
+    description = (
+        "A python implementation of the Extended Triple Diffie-Hellman key agreement " +
+        "protocol."
+    ),
     long_description = long_description,
     long_description_content_type = "text/markdown",
     url = "https://github.com/Syndace/python-x3dh",
@@ -14,11 +24,11 @@ setup(
     author_email = "tim@cifg.io",
     license = "MIT",
     packages = find_packages(),
-    install_requires = [ "hkdf==0.0.3", "XEdDSA>=0.4.0" ],
+    install_requires = [ "hkdf==0.0.3", "XEdDSA>=0.4.1" ],
     python_requires  = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4",
     zip_safe = True,
     classifiers = [
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
 
         "Intended Audience :: Developers",
 
@@ -27,7 +37,17 @@ setup(
 
         "License :: OSI Approved :: MIT License",
 
-        "Operating System :: OS Independent",
+        "Operating System :: Microsoft :: Windows",
+        "Operating System :: Microsoft :: Windows :: Windows XP",
+        "Operating System :: Microsoft :: Windows :: Windows Vista",
+        "Operating System :: Microsoft :: Windows :: Windows 7",
+        "Operating System :: Microsoft :: Windows :: Windows 8",
+        "Operating System :: Microsoft :: Windows :: Windows 8.1",
+        "Operating System :: Microsoft :: Windows :: Windows 10",
+
+        "Operating System :: POSIX",
+        "Operating System :: POSIX :: Linux",
+        "Operating System :: Unix",
 
         "Programming Language :: Python :: Implementation :: CPython",
 
