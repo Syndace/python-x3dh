@@ -41,8 +41,11 @@ def test_x3dh():
     previous = 100
 
     for _ in range(1000):
-        session_init_data  = state_alice.initSessionActive(state_bob.getPublicBundle())
-        other_session_data = state_bob.initSessionPassive(session_init_data["to_other"])
+        bob_bundle = state_bob.getPublicBundle()
+        key_exchange_data_active = state_alice.getSharedSecretActive(bob_bundle)
+
+        to_passive = key_exchange_data_active["to_other"]
+        key_exchange_data_passive = state_bob.getSharedSecretPassive(to_passive)
 
         assert state_bob.changed
 
@@ -53,8 +56,8 @@ def test_x3dh():
 
         previous = len(state_bob.getPublicBundle().otpks)
 
-        assert session_init_data["sk"] == other_session_data["sk"]
-        assert session_init_data["ad"] == other_session_data["ad"]
+        assert key_exchange_data_active["sk"] == key_exchange_data_passive["sk"]
+        assert key_exchange_data_active["ad"] == key_exchange_data_passive["ad"]
 
 def test_spk_rotation():
     state = ExampleStateB()
@@ -73,8 +76,11 @@ def test_serialization():
     previous = 100
 
     for _ in range(42):
-        session_init_data  = state_alice.initSessionActive(state_bob.getPublicBundle())
-        other_session_data = state_bob.initSessionPassive(session_init_data["to_other"])
+        bob_bundle = state_bob.getPublicBundle()
+        key_exchange_data_active = state_alice.getSharedSecretActive(bob_bundle)
+
+        to_passive = key_exchange_data_active["to_other"]
+        key_exchange_data_passive = state_bob.getSharedSecretPassive(to_passive)
 
         assert state_bob.changed
 
@@ -85,8 +91,8 @@ def test_serialization():
 
         previous = len(state_bob.getPublicBundle().otpks)
 
-        assert session_init_data["sk"] == other_session_data["sk"]
-        assert session_init_data["ad"] == other_session_data["ad"]
+        assert key_exchange_data_active["sk"] == key_exchange_data_passive["sk"]
+        assert key_exchange_data_active["ad"] == key_exchange_data_passive["ad"]
 
     state_alice_serialized = json.dumps(state_alice.serialize())
     state_bob_serialized   = json.dumps(state_bob.serialize())
@@ -95,8 +101,11 @@ def test_serialization():
     state_bob   = ExampleStateA.fromSerialized(json.loads(state_bob_serialized))
 
     for _ in range(42):
-        session_init_data  = state_alice.initSessionActive(state_bob.getPublicBundle())
-        other_session_data = state_bob.initSessionPassive(session_init_data["to_other"])
+        bob_bundle = state_bob.getPublicBundle()
+        key_exchange_data_active = state_alice.getSharedSecretActive(bob_bundle)
+
+        to_passive = key_exchange_data_active["to_other"]
+        key_exchange_data_passive = state_bob.getSharedSecretPassive(to_passive)
 
         assert state_bob.changed
 
@@ -107,5 +116,5 @@ def test_serialization():
 
         previous = len(state_bob.getPublicBundle().otpks)
 
-        assert session_init_data["sk"] == other_session_data["sk"]
-        assert session_init_data["ad"] == other_session_data["ad"]
+        assert key_exchange_data_active["sk"] == key_exchange_data_passive["sk"]
+        assert key_exchange_data_active["ad"] == key_exchange_data_passive["ad"]

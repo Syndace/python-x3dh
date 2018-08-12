@@ -1,4 +1,9 @@
 class KeyPair(object):
+    """
+    The interface of a key pair. A key pair is a pair consisting of a private and a public
+    key used for en- and decryption.
+    """
+
     def __init__(self, priv = None, pub = None):
         """
         Initiate a KeyPair instance using the key information provided as parameters.
@@ -18,13 +23,14 @@ class KeyPair(object):
         Use together with the fromSerialized method.
         Here, "serializable" means, that the structure consists of any combination of the
         following types:
-        - dictionaries
-        - lists
-        - strings
-        - integers
-        - floats
-        - booleans
-        - None
+
+        * dictionaries
+        * lists
+        * strings
+        * integers
+        * floats
+        * booleans
+        * None
         """
 
         return None
@@ -66,6 +72,8 @@ class KeyPair(object):
         :param other: An instance of the KeyPair class. The public key to encrypt the data
             for.
         :returns: The encrypted data.
+        :raises MissingKeyException: If any key is missing to complete this operation. The
+            exception message will contain (human-readable) details.
         """
 
         raise NotImplementedError
@@ -79,6 +87,8 @@ class KeyPair(object):
         :param other: An instance of the KeyPair class. The public key to decrypt the data
             from.
         :returns: The decrypted plain data.
+        :raises MissingKeyException: If any key is missing to complete this operation. The
+            exception message will contain (human-readable) details.
         """
 
         raise NotImplementedError
@@ -94,6 +104,8 @@ class KeyPair(object):
 
         :param other: An instance of the KeyPair class.
         :returns: The shared secret, as a bytes-like object.
+        :raises MissingKeyException: If any key is missing to complete this operation. The
+            exception message will contain (human-readable) details.
         """
 
         raise NotImplementedError

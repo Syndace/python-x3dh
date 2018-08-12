@@ -1,0 +1,2 @@
+class KeyExchangeException(Exception):
+    pass

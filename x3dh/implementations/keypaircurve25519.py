@@ -18,7 +18,7 @@ from xeddsa.implementations import XEdDSA25519
 
 class KeyPairCurve25519(KeyPair):
     """
-    An implementation of the KeyPair interface for Montgomery Curve25519 keys.
+    An implementation of the KeyPair interface for Montgomery Curve25519 key pairs.
     """
 
     def __init__(self, priv = None, pub = None):

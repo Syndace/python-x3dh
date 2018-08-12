@@ -1,4 +1,10 @@
 class PublicBundle(object):
+    """
+    The public bundle is an important part of the X3DH protocol. It contains a collection
+    of public keys and signatures, that each party somehow has to publish. Other parties
+    can use the contents of this bundle to initiate the key exchange.
+    """
+
     def __init__(self, ik, spk, spk_signature, otpks):
         """
         Create a new public bundle.
