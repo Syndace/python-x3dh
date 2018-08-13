@@ -24,9 +24,12 @@ setup(
     author_email = "tim@cifg.io",
     license = "MIT",
     packages = find_packages(),
-    install_requires = [ "hkdf==0.0.3", "XEdDSA>=0.4.1" ],
+    install_requires = [ "hkdf==0.0.3", "XEdDSA>=0.4.2" ],
     python_requires  = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4",
-    zip_safe = True,
+    # This is a lie, the package is actually zip safe. Sadly, sphinx fails to load the
+    # source code from zipped eggs, that's why the flag has to be False during generation
+    # of the documentation.
+    zip_safe = False,
     classifiers = [
         "Development Status :: 4 - Beta",
 

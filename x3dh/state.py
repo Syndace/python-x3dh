@@ -6,7 +6,6 @@ import hashlib
 import os
 import time
 
-from .exceptions import InvalidConfigurationException
 from .exceptions import KeyExchangeException
 from .implementations import KeyPairCurve25519
 from .publicbundle import PublicBundle
@@ -47,7 +46,8 @@ class State(object):
         Prepare an X3DH state to provide asynchronous key exchange using a set of public
         keys called "public bundle".
 
-        :param info_string: An ASCII string identifying the application.
+        :param info_string: A bytes-like object encoding a string unique to this usage
+            within the application.
         :param curve: The type of the curve. Allowed values: (the string) "25519"
             ("448" might follow soon).
         :param hash_function: The hash function to use. Allowed values: (the strings)
@@ -56,21 +56,16 @@ class State(object):
         :param min_num_otpks: Minimum number of OTPKs that must always be available.
         :param max_num_otpks: Maximum number of OTPKs that may be available.
         :param public_key_encoder_class: A sub class of PublicKeyEncoder.
-        :raises InvalidConfigurationException: If either the curve or hash_function
-            parameter has an invalid value.
         """
 
+        if not isinstance(info_string, bytes):
+            raise TypeError("Wrong type passed for the info_string parameter.")
+
         if not curve in [ "25519" ]:
-            raise InvalidConfigurationException(
-                "The type of the curve. Allowed values: (the string) \"25519\" " +
-                "(\"448\" might follow soon)."
-            )
+            raise ValueError("Invalid value passed for the curve parameter.")
 
         if not hash_function in State.HASH_FUNCTIONS:
-            raise InvalidConfigurationException(
-                "The hash function to use. Allowed values: (the strings) \"SHA-256\" " +
-                "and \"SHA-512\"."
-            )
+            raise ValueError("Invalid value passed for the hash_function parameter.")
 
         self.__info_string      = info_string
         self.__curve            = curve
@@ -243,7 +238,7 @@ class State(object):
 
         return hkdf_expand(
             hkdf_extract(salt, input_key_material, self.__hash_function),
-            self.__info_string.encode("ASCII"),
+            self.__info_string,
             32,
             self.__hash_function
         )

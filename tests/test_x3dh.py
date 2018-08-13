@@ -13,7 +13,7 @@ class ExamplePublicKeyEncoder(x3dh.PublicKeyEncoder):
 class ExampleStateA(x3dh.State):
     def __init__(self):
         super(ExampleStateA, self).__init__(
-            info_string = "ThisIsAnExample!",
+            info_string = "ThisIsAnExample!".encode("US-ASCII"),
             curve = "25519",
             hash_function = "SHA-256",
             spk_timeout = 7 * 24 * 60 * 60,
@@ -25,7 +25,7 @@ class ExampleStateA(x3dh.State):
 class ExampleStateB(x3dh.State):
     def __init__(self):
         super(ExampleStateB, self).__init__(
-            info_string = "ThisIsAnotherExample!",
+            info_string = "ThisIsAnotherExample!".encode("US-ASCII"),
             curve = "25519",
             hash_function = "SHA-512",
             spk_timeout = 2,
