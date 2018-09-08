@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import base64
 from functools import wraps
-import hashlib
 import os
 import time
 
@@ -12,7 +11,9 @@ from .publicbundle import PublicBundle
 
 from xeddsa.implementations import XEdDSA25519
 
-from hkdf import hkdf_expand, hkdf_extract
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.backends import default_backend
 
 def changes(f):
     @wraps(f)
@@ -27,9 +28,11 @@ class State(object):
     signatures and offers methods to do key exchanges with other parties.
     """
 
+    CRYPTOGRAPHY_BACKEND = default_backend()
+
     HASH_FUNCTIONS = {
-        "SHA-256": hashlib.sha256,
-        "SHA-512": hashlib.sha512
+        "SHA-256": hashes.SHA256,
+        "SHA-512": hashes.SHA512
     }
 
     def __init__(
@@ -236,12 +239,15 @@ class State(object):
 
         input_key_material += secret_key_material
 
-        return hkdf_expand(
-            hkdf_extract(salt, input_key_material, self.__hash_function),
-            self.__info_string,
-            32,
-            self.__hash_function
+        hkdf = HKDF(
+            algorithm=self.__hash_function(),
+            length=32,
+            salt=salt,
+            info=self.__info_string,
+            backend=self.__class__.CRYPTOGRAPHY_BACKEND
         )
+
+        return hkdf.derive(input_key_material)
 
     ##################
     # key management #

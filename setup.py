@@ -24,12 +24,9 @@ setup(
     author_email = "tim@cifg.io",
     license = "MIT",
     packages = find_packages(),
-    install_requires = [ "hkdf==0.0.3", "XEdDSA>=0.4.2" ],
-    python_requires  = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, <4",
-    # This is a lie, the package is actually zip safe. Sadly, sphinx fails to load the
-    # source code from zipped eggs, that's why the flag has to be False during generation
-    # of the documentation.
-    zip_safe = False,
+    install_requires = [ "cryptography>=1.7.1", "XEdDSA>=0.4.2" ],
+    python_requires  = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4",
+    zip_safe = True,
     classifiers = [
         "Development Status :: 4 - Beta",
 
@@ -55,11 +52,9 @@ setup(
         "Programming Language :: Python :: Implementation :: CPython",
 
         "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
 
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
