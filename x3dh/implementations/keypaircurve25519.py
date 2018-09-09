@@ -24,14 +24,15 @@ class KeyPairCurve25519(KeyPair):
     def __init__(self, priv = None, pub = None):
         wrap = self.__class__.__wrap
 
-        if priv == None and pub == None:
-            priv = XEdDSA25519.generate_mont_priv()
-
         self.__priv = wrap(priv, Curve25519DecryptionKey)
         self.__pub  = wrap(pub,  Curve25519EncryptionKey)
 
         if self.__priv != None and self.__pub == None:
             self.__pub = self.__priv.public_key
+
+    @classmethod
+    def generate(cls):
+        return cls(priv = XEdDSA25519.generate_mont_priv())
 
     @staticmethod
     def __wrap(key, cls):

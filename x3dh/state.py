@@ -172,7 +172,7 @@ class State(object):
         Generate an IK. This should only be done once.
         """
 
-        self.__ik = self.__KeyPair()
+        self.__ik = self.__KeyPair.generate()
     
     @changes
     def __generateSPK(self):
@@ -181,7 +181,7 @@ class State(object):
         to allow for periodic rotations.
         """
 
-        key = self.__KeyPair()
+        key = self.__KeyPair.generate()
 
         key_serialized = self.__PublicKeyEncoder.encodePublicKey(
             key.pub,
@@ -213,7 +213,7 @@ class State(object):
         otpks = []
 
         for _ in range(num_otpks):
-            otpks.append(self.__KeyPair())
+            otpks.append(self.__KeyPair.generate())
 
         try:
             self.__otpks.extend(otpks)
@@ -426,7 +426,7 @@ class State(object):
             )
 
         if _DEBUG_ek == None:
-            ek = self.__KeyPair()
+            ek = self.__KeyPair.generate()
         else:
             import logging
 
