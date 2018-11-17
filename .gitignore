@@ -6,3 +6,6 @@ X3DH.egg-info/
 .pytest_cache/
 
 docs/_build/
+
+install.sh
+Makefile
