@@ -26,7 +26,7 @@ setup(
     packages = find_packages(),
     install_requires = [ "cryptography>=1.7.1", "XEdDSA>=0.4.2" ],
     python_requires  = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4",
-    zip_safe = True,
+    zip_safe = False,
     classifiers = [
         "Development Status :: 4 - Beta",
 
@@ -37,17 +37,7 @@ setup(
 
         "License :: OSI Approved :: MIT License",
 
-        "Operating System :: Microsoft :: Windows",
-        "Operating System :: Microsoft :: Windows :: Windows XP",
-        "Operating System :: Microsoft :: Windows :: Windows Vista",
-        "Operating System :: Microsoft :: Windows :: Windows 7",
-        "Operating System :: Microsoft :: Windows :: Windows 8",
-        "Operating System :: Microsoft :: Windows :: Windows 8.1",
-        "Operating System :: Microsoft :: Windows :: Windows 10",
-
-        "Operating System :: POSIX",
-        "Operating System :: POSIX :: Linux",
-        "Operating System :: Unix",
+        "Operating System :: OS Independent",
 
         "Programming Language :: Python :: Implementation :: CPython",
 
