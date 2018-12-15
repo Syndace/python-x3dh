@@ -5,6 +5,7 @@ x3dh
     Module: keypair <keypair>
     Module: publicbundle <publicbundle>
     Module: publickeyencoder <publickeyencoder>
+    Module: serializable <serializable>
     Module: state <state>
 
     Package: exceptions <exceptions/package>

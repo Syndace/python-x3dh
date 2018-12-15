@@ -8,4 +8,5 @@ from . import implementations
 from .keypair import KeyPair
 from .publicbundle import PublicBundle
 from .publickeyencoder import PublicKeyEncoder
+from .serializable import Serializable
 from .state import State

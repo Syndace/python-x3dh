@@ -8,6 +8,7 @@ import time
 from .exceptions import KeyExchangeException
 from .implementations import KeyPairCurve25519
 from .publicbundle import PublicBundle
+from .serializable import Serializable
 
 from xeddsa.implementations import XEdDSA25519
 
@@ -22,7 +23,7 @@ def changes(f):
         return f(*args, **kwargs)
     return _changes
 
-class State(object):
+class State(Serializable):
     """
     The state is the core of the X3DH protocol. It manages a collection of key pairs and
     signatures and offers methods to do key exchanges with other parties.
@@ -99,23 +100,6 @@ class State(object):
     #################
 
     def serialize(self):
-        """
-        :returns: A serializable Python structure, which contains all the state
-            information of this object.
-
-        Use together with the fromSerialized method.
-        Here, "serializable" means, that the structure consists of any combination of the
-        following types:
-
-        * dictionaries
-        * lists
-        * strings
-        * integers
-        * floats
-        * booleans
-        * None
-        """
-
         spk = {
             "key"       : self.__spk["key"].serialize(),
             "signature" : base64.b64encode(self.__spk["signature"]).decode("US-ASCII"),
@@ -126,22 +110,12 @@ class State(object):
             "changed"      : self._changed,
             "ik"           : self.__ik.serialize(),
             "spk"          : spk,
-            "otpks"        : [ x.serialize() for x in self.__otpks ],
-            "hidden_otpks" : [ x.serialize() for x in self.__hidden_otpks ]
+            "otpks"        : [ otpk.serialize() for otpk in self.__otpks ],
+            "hidden_otpks" : [ otpk.serialize() for otpk in self.__hidden_otpks ]
         }
 
     @classmethod
     def fromSerialized(cls, serialized, *args, **kwargs):
-        """
-        :param serialized: A serializable Python object.
-        :returns: Return a new instance that was set to the state that was saved into the
-            serialized object.
-
-        Use together with the serialize method.
-        Notice: You have to pass all positional parameters required by the constructor of
-        the class you call fromSerialized on.
-        """
-
         self = cls(*args, **kwargs)
 
         parseKeyPair = self.__KeyPair.fromSerialized
@@ -355,8 +329,7 @@ class State(object):
     def getSharedSecretActive(
         self,
         other_public_bundle,
-        allow_zero_otpks = False,
-        _DEBUG_ek = None
+        allow_zero_otpks = False
     ):
         """
         Do the key exchange, as the active party. This involves selecting keys from the
@@ -425,16 +398,7 @@ class State(object):
                 "The signature of this public bundle's spk could not be verifified."
             )
 
-        if _DEBUG_ek == None:
-            ek = self.__KeyPair.generate()
-        else:
-            import logging
-
-            logging.getLogger("x3dh.State").error(
-                "WARNING: RUNNING UNSAFE DEBUG-ONLY OPERATION"
-            )
-
-            ek = _DEBUG_ek
+        ek = self.__KeyPair.generate()
 
         dh1 = self.__ik.getSharedSecret(other_spk["key"])
         dh2 = ek.getSharedSecret(other_ik)
