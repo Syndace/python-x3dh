@@ -30,6 +30,9 @@ class KeyPairCurve25519(KeyPair):
         if self.__priv != None and self.__pub == None:
             self.__pub = self.__priv.public_key
 
+        self.__priv_bytes = None if self.__priv == None else bytes(self.__priv)
+        self.__pub_bytes  = None if self.__pub  == None else bytes(self.__pub)
+
     @classmethod
     def generate(cls):
         return cls(priv = XEdDSA25519.generate_mont_priv())
@@ -77,11 +80,11 @@ class KeyPairCurve25519(KeyPair):
 
     @property
     def priv(self):
-        return None if self.__priv == None else bytes(self.__priv)
+        return self.__priv_bytes
 
     @property
     def pub(self):
-        return None if self.__pub == None else bytes(self.__pub)
+        return self.__pub_bytes
 
     def encrypt(self, data, other):
         return bytes(self.__getBox(other).encrypt(data, random(crypto_box_NONCEBYTES)))
