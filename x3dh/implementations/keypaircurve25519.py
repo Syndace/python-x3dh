@@ -76,6 +76,9 @@ class KeyPairCurve25519(KeyPair):
         self.__priv = wrap(priv, Curve25519DecryptionKey)
         self.__pub  = wrap(pub,  Curve25519EncryptionKey)
 
+        self.__priv_bytes = None if self.__priv == None else bytes(self.__priv)
+        self.__pub_bytes  = None if self.__pub  == None else bytes(self.__pub)
+
         return self
 
     @property
