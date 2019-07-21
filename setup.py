@@ -31,10 +31,10 @@ setup(
     long_description_content_type = "text/markdown",
     url = "https://github.com/Syndace/python-x3dh",
     author = "Tim Henkes",
-    author_email = "tim@cifg.io",
+    author_email = "me@syndace.dev",
     license = "MIT",
     packages = find_packages(),
-    install_requires = [ "cryptography>=1.7.1", "XEdDSA>=0.4.5,<0.5" ],
+    install_requires = [ "cryptography>=1.7.1", "XEdDSA>=0.4.7,<0.5" ],
     python_requires  = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, <4",
     zip_safe = False,
     classifiers = [
