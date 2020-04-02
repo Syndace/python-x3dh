@@ -1,597 +1,779 @@
-from __future__ import absolute_import
-
-import base64
-from functools import wraps
-import os
+import ctypes
 import time
-
-from .exceptions import KeyExchangeException
-from .implementations import KeyPairCurve25519
-from .publicbundle import PublicBundle
-from .serializable import Serializable
-
-from xeddsa.implementations import XEdDSA25519
+import secrets
+from typing import TypeVar, Type, Optional, List, Any, Dict
+import warnings
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.backends import default_backend
+import libnacl
+from packaging.version import parse as parse_version
+from xeddsa import XEdDSA25519
 
-def changes(f):
-    @wraps(f)
-    def _changes(*args, **kwargs):
-        args[0]._changed = True
-        return f(*args, **kwargs)
-    return _changes
+from .types import (
+    # Type Aliases
+    JSONType,
 
-class State(Serializable):
+    #KeyPairSerialized,
+    #SignedPreKeyPairSerialized,
+    StateSerialized,
+
+    # Structures (NamedTuples)
+    Bundle,
+    Header,
+    SharedSecretActive,
+    SharedSecretPassive,
+
+    KeyPair,
+    SignedPreKeyPair,
+
+    # Enumerations
+    Curve,
+    CurveType,
+    HashFunction,
+
+    # Exceptions
+    InconsistentConfigurationException,
+    KeyExchangeException
+)
+
+from .version import __version__
+
+# This is not exported by libnacl (yet), but libnacl ships the required tools to do so.
+def crypto_scalarmult(sk: bytes, pk: bytes) -> bytes: # pylint: disable=invalid-name
+    if len(pk) != libnacl.crypto_box_PUBLICKEYBYTES:
+        raise ValueError('Invalid public key')
+    if len(sk) != libnacl.crypto_box_SECRETKEYBYTES:
+        raise ValueError('Invalid secret key')
+    secret = ctypes.create_string_buffer(libnacl.crypto_scalarmult_BYTES)
+    if libnacl.nacl.crypto_scalarmult(secret, sk, pk):
+        raise libnacl.CryptError('Failed to compute scalar product')
+    return secret.raw
+
+S = TypeVar("S", bound="State")
+class State:
     """
-    The state is the core of the X3DH protocol. It manages a collection of key pairs and
-    signatures and offers methods to do key exchanges with other parties.
+    This class is the core of this X3DH implementation. It manages the own :class:`~x3dh.types.Bundle` and
+    offers methods to perform key agreements with other parties.
     """
 
-    CRYPTOGRAPHY_BACKEND = default_backend()
+    def __init__(self) -> None:
+        # Just the type definitions here
+        self.__curve                : Curve
+        self.__internal_ik_type     : CurveType
+        self.__external_ik_type     : CurveType
+        self.__hash_function        : HashFunction
+        self.__info_string          : str
+        self.__spk_timeout          : int
+        self.__opk_refill_threshold : int
+        self.__opk_refill_target    : int
+        self.__ik                   : KeyPair
+        self.__spk                  : SignedPreKeyPair
+        self.__old_spk              : Optional[SignedPreKeyPair]
+        self.__opks                 : List[KeyPair]
 
-    HASH_FUNCTIONS = {
-        "SHA-256": hashes.SHA256,
-        "SHA-512": hashes.SHA512
-    }
+    @classmethod
+    def __create(
+        cls: Type[S],
+        curve: Curve,
+        internal_ik_type: CurveType,
+        external_ik_type: CurveType,
+        hash_function: HashFunction,
+        info_string: str,
+        spk_timeout: int,
+        opk_refill_threshold: int,
+        opk_refill_target: int
+    ) -> S:
+        # pylint: disable=protected-access
+        if internal_ik_type is CurveType.Ed and external_ik_type is CurveType.Mont:
+            raise ValueError(
+                "Invalid value combination passed for the `internal_ik_type` and `external_ik_type`"
+                ' parameters. The combination of "Ed" internally and "Mont" externally is forbidden.'
+            )
 
-    def __init__(
-        self,
-        info_string,
-        curve,
-        hash_function,
-        spk_timeout,
-        min_num_otpks,
-        max_num_otpks,
-        public_key_encoder_class
-    ):
+        try:
+            info_string.encode("ASCII", errors="strict")
+        except UnicodeEncodeError:
+            raise ValueError(
+                "Invalid value passed for the `info_string` parameter."
+                " The string may only contain ASCII-encodable chars."
+            )
+
+        if spk_timeout < 1:
+            raise ValueError(
+                "Invalid value passed for the `spk_timeout` parameter."
+                " The signed pre key rotation period must be at least one day."
+            )
+
+        if not 1 <= opk_refill_threshold <= opk_refill_target:
+            raise ValueError(
+                "Invalid value(s) passed for the `opk_refill_threshold` / `opk_refill_target` parameter(s)."
+                " `opk_refill_threshold` must be greater than or equal to '1' and lower than or equal to"
+                " `opk_refill_target`."
+            )
+
+        self = cls()
+        self.__curve                = curve
+        self.__internal_ik_type     = internal_ik_type
+        self.__external_ik_type     = external_ik_type
+        self.__hash_function        = hash_function
+        self.__info_string          = info_string
+        self.__spk_timeout          = spk_timeout
+        self.__opk_refill_threshold = opk_refill_threshold
+        self.__opk_refill_target    = opk_refill_target
+
+        return self
+
+    @classmethod
+    async def create(
+        cls: Type[S],
+        curve: Curve,
+        internal_ik_type: CurveType,
+        external_ik_type: CurveType,
+        hash_function: HashFunction,
+        info_string: str,
+        spk_timeout: int,
+        opk_refill_threshold: int,
+        opk_refill_target: int
+    ) -> S:
+        # pylint: disable=protected-access
         """
-        Prepare an X3DH state to provide asynchronous key exchange using a set of public
-        keys called "public bundle".
+        Args:
+            curve: The curve to use for all keys.
+            internal_ik_type: The internal type of the identity key pair.
+            external_ik_type: The external type of the identity key pair.
+            hash_function: A 256 or 512-bit hash function.
+            info_string: An ASCII string identifying the application.
+            spk_timeout: Rotate the signed pre key after this amount of time in days.
+            opk_refill_threshold: Threshold for refilling the one-time pre keys.
+            opk_refill_target: When less then `opk_refill_threshold` one-time pre keys are available, generate
+                new ones until there are `opk_refill_target` opks again.
 
-        :param info_string: A bytes-like object encoding a string unique to this usage
-            within the application.
-        :param curve: The type of the curve. Allowed values: (the string) "25519"
-            ("448" might follow soon).
-        :param hash_function: The hash function to use. Allowed values: (the strings)
-            "SHA-256" and "SHA-512".
-        :param spk_timeout: Rotate the SPK after this amount of time in seconds.
-        :param min_num_otpks: Minimum number of OTPKs that must always be available.
-        :param max_num_otpks: Maximum number of OTPKs that may be available.
-        :param public_key_encoder_class: A sub class of PublicKeyEncoder.
+        For details regarding the internal and external identity key types, refer to
+        :ref:`the documentation <ik-types>`.
+
+        Returns:
+            A configured instance of :class:`~x3dh.state.State`.
         """
 
-        if not isinstance(info_string, bytes):
-            raise TypeError("Wrong type passed for the info_string parameter.")
+        self = cls.__create(
+            curve,
+            internal_ik_type,
+            external_ik_type,
+            hash_function,
+            info_string,
+            spk_timeout,
+            opk_refill_threshold,
+            opk_refill_target
+        )
 
-        if not curve in [ "25519" ]:
-            raise ValueError("Invalid value passed for the curve parameter.")
+        self.__ik      = self.__generate_ik()
+        self.__spk     = self.__generate_spk()
+        self.__old_spk = None
+        self.__opks    = []
 
-        if not hash_function in State.HASH_FUNCTIONS:
-            raise ValueError("Invalid value passed for the hash_function parameter.")
+        self.__refill_opks()
+        await self.__publish_bundle()
 
-        self.__info_string      = info_string
-        self.__curve            = curve
-        self.__hash_function    = State.HASH_FUNCTIONS[hash_function]
-        self.__spk_timeout      = spk_timeout
-        self.__min_num_otpks    = min_num_otpks
-        self.__max_num_otpks    = max_num_otpks
-        self.__PublicKeyEncoder = public_key_encoder_class
+        return self
 
-        # Load the configuration
-        if self.__curve == "25519":
-            self.__KeyPair = KeyPairCurve25519
-            self.__XEdDSA  = XEdDSA25519
+    ####################
+    # abstract methods #
+    ####################
 
-        # Track whether this State has somehow changed since loading it
-        # This can be used e.g. to republish the public bundle if something has changed
-        self._changed = False
+    async def _publish_bundle(self, bundle: Bundle) -> Any:
+        """
+        Args:
+            bundle: The bundle to publish, overwriting previously published data.
 
-        # Keep a list of OTPKs that have been hidden from the public bundle.
-        self.__hidden_otpks = []
+        Returns:
+            Anything, the return value is ignored.
 
-        self.__generateIK()
-        self.__generateSPK()
-        self.__generateOTPKs()
+        Note:
+            In addition to publishing the bundle, this method can be used as a trigger to persist the state.
+            Persisting the state in this method guarantees always remaining up-to-date.
+
+        Note:
+            This method is called from :meth:`create`, before :meth:`create` has returned the instance. Thus,
+            modifications to the object (``self``, in case of subclasses) may not have happened when this
+            method is called.
+        """
+
+        raise NotImplementedError("Create a subclass of X3DH and implement `_publish_bundle`.")
+
+    def _encode_public_key(self, curve: Curve, key_type: CurveType, pub: bytes) -> bytes:
+        """
+        Args:
+            curve: The curve this public key belongs to.
+            key_type: The type of this public key.
+            pub: The public key, encoded as a byte array.
+
+        Returns:
+            An encoding of the public key, possibly including information about the curve and type of key,
+            though this is application defined. Note that two different public keys must never result in the
+            same byte sequence, uniqueness of the public keys must be preserved.
+        """
+
+        raise NotImplementedError("Create a subclass of X3DH and implement `_encode_public_key`.")
 
     #################
     # serialization #
     #################
 
-    def serialize(self):
-        spk = {
-            "key"       : self.__spk["key"].serialize(),
-            "signature" : base64.b64encode(self.__spk["signature"]).decode("US-ASCII"),
-            "timestamp" : self.__spk["timestamp"]
-        }
+    def serialize(self) -> StateSerialized:
+        """
+        Returns:
+            The internal state of this instance in a JSON-friendly serializable format. Restore the instance
+            using :meth:`deserialize`.
+        """
 
         return {
-            "changed"      : self._changed,
-            "ik"           : self.__ik.serialize(),
-            "spk"          : spk,
-            "otpks"        : [ otpk.serialize() for otpk in self.__otpks ],
-            "hidden_otpks" : [ otpk.serialize() for otpk in self.__hidden_otpks ]
+            "ik": self.__ik.serialize(),
+            "spk": self.__spk.serialize(),
+            "old_spk": None if self.__old_spk is None else self.__old_spk.serialize(),
+            "opks": [ opk.serialize() for opk in self.__opks ],
+            "curve": self.__curve.name,
+            "internal_ik_type": self.__internal_ik_type.name,
+            "external_ik_type": self.__external_ik_type.name,
+            "hash_function": self.__hash_function.name,
+            "info_string": self.__info_string,
+            "version": __version__["short"]
         }
 
     @classmethod
-    def fromSerialized(cls, serialized, *args, **kwargs):
-        self = cls(*args, **kwargs)
+    async def deserialize(
+        cls: Type[S],
+        serialized: JSONType,
+        curve: Curve,
+        internal_ik_type: CurveType,
+        external_ik_type: CurveType,
+        hash_function: HashFunction,
+        info_string: str,
+        spk_timeout: int,
+        opk_refill_threshold: int,
+        opk_refill_target: int
+    ) -> S:
+        # pylint: disable=protected-access
+        # pylint: disable=too-many-statements
+        """
+        Args:
+            serialized: A serialized instance of this class, as produced by :meth:`serialize`.
+            curve: The curve to use for all keys.
+            internal_ik_type: The internal type of the identity key pair.
+            external_ik_type: The external type of the identity key pair.
+            hash_function: A 256 or 512-bit hash function.
+            info_string: An ASCII string identifying the application.
+            spk_timeout: Rotate the signed pre key after this amount of time in days.
+            opk_refill_threshold: Threshold for refilling the one-time pre keys.
+            opk_refill_target: When less then `opk_refill_threshold` one-time pre keys are available, generate
+                new ones until there are `opk_refill_target` opks again.
 
-        parseKeyPair = self.__KeyPair.fromSerialized
+        For details regarding the internal and external identity key types, refer to
+        :ref:`the documentation <ik-types>`.
 
-        self._changed = serialized["changed"]
+        Returns:
+            A configured instance of :class:`~x3dh.state.State` restored from the serialized data.
 
-        self.__ik = parseKeyPair(serialized["ik"])
+        Raises:
+            InconsistentConfigurationException: If the state was serialized with a configuration that is
+                incompatible with the current configuration.
+        """
 
-        spk = serialized["spk"]
-        self.__spk = {
-            "key"       : parseKeyPair(spk["key"]),
-            "signature" : base64.b64decode(spk["signature"].encode("US-ASCII")),
-            "timestamp" : spk["timestamp"]
-        }
+        publish = False
 
-        self.__otpks        = [ parseKeyPair(x) for x in serialized["otpks"] ]
-        self.__hidden_otpks = [ parseKeyPair(x) for x in serialized["hidden_otpks"] ]
+        def assert_type(obj: Dict[str, Any], key: str, value_type: Any) -> None:
+            assert key in obj
+            assert isinstance(obj[key], value_type)
+
+        # The only constant between all serialization formats is that the root element is a dictionary.
+        assert isinstance(serialized, dict)
+
+        # If the version is included, parse it. Otherwise, assume 0.0.0 for the version.
+        version = parse_version("0.0.0")
+        if "version" in serialized:
+            assert isinstance(serialized["version"], str)
+            version = parse_version(serialized["version"])
+
+        # Run migrations
+        version_1_0_0 = parse_version("1.0.0")
+        if version < version_1_0_0:
+            # Migrate pre-stable serialization format
+            assert_type(serialized, "changed", bool)
+            assert_type(serialized, "ik", dict)
+            assert_type(serialized["ik"], "priv", str)
+            assert_type(serialized["ik"], "pub",  str)
+            assert_type(serialized, "spk", dict)
+            assert_type(serialized["spk"], "key", dict)
+            assert_type(serialized["spk"]["key"], "priv", str)
+            assert_type(serialized["spk"]["key"], "pub",  str)
+            assert_type(serialized["spk"], "signature", str)
+            assert_type(serialized["spk"], "timestamp", float)
+            assert_type(serialized, "otpks", list)
+
+            publish = serialized["changed"] or publish
+
+            pre_stable_opks: List[Dict[str, str]] = []
+
+            for opk in serialized["otpks"]:
+                assert isinstance(opk, dict)
+
+                assert_type(opk, "priv", str)
+                assert_type(opk, "pub",  str)
+
+                pre_stable_opks.append({ "priv": opk["priv"], "pub":  opk["pub"] })
+
+            warnings.warn(
+                "Importing pre-stable state, the compatibility of the configuration (curve, identity key"
+                " types, hash function, info string) can't be confirmed."
+            )
+
+            serialized = {
+                "ik": {
+                    "priv": serialized["ik"]["priv"],
+                    "pub":  serialized["ik"]["pub"]
+                },
+                "spk": {
+                    "key": {
+                        "priv": serialized["spk"]["key"]["priv"],
+                        "pub":  serialized["spk"]["key"]["pub"]
+                    },
+                    "sig": serialized["spk"]["signature"],
+                    "timestamp": int(serialized["spk"]["timestamp"])
+                },
+                "old_spk": None,
+                "opks": pre_stable_opks,
+                "curve": curve.name,
+                "internal_ik_type": internal_ik_type.name,
+                "external_ik_type": external_ik_type.name,
+                "hash_function": hash_function.name,
+                "info_string": info_string,
+                "version": "1.0.0"
+            }
+
+            version = version_1_0_0
+
+        # All migrations done, deserialize the data.
+        assert "ik"      in serialized
+        assert "spk"     in serialized
+        assert "old_spk" in serialized
+        assert_type(serialized, "opks", list)
+        assert_type(serialized, "curve", str)
+        assert_type(serialized, "internal_ik_type", str)
+        assert_type(serialized, "external_ik_type", str)
+        assert_type(serialized, "hash_function", str)
+        assert_type(serialized, "info_string", str)
+
+        if serialized["curve"] != curve.name:
+            raise InconsistentConfigurationException(
+                "The serialized state uses keys on {}, the state can't be loaded/converted for {}.".format(
+                    serialized["curve"],
+                    curve.name
+                )
+            )
+
+        if serialized["internal_ik_type"] != internal_ik_type.name:
+            raise InconsistentConfigurationException(
+                "The serialized state uses {} key pairs internally for the identity key, the state can't be"
+                " loaded/converted to use {} key pairs instead.".format(
+                    serialized["internal_ik_type"],
+                    internal_ik_type.name
+                )
+            )
+
+        if serialized["external_ik_type"] != external_ik_type.name:
+            warnings.warn(
+                "The external identity key type has changed. This means that all bundles have to be"
+                " republished and key agreements initiated prior to this change are now invalid."
+            )
+            publish = True
+
+        if serialized["hash_function"] != hash_function.name:
+            warnings.warn(
+                "The hash function has changed. This means that key agreements initiated prior to this change"
+                " are now invalid."
+            )
+
+        if serialized["info_string"] != info_string:
+            warnings.warn(
+                "The info string has changed. This means that key agreements initiated prior to this change"
+                " are now invalid."
+            )
+
+        self = cls.__create(
+            curve,
+            internal_ik_type,
+            external_ik_type,
+            hash_function,
+            info_string,
+            spk_timeout,
+            opk_refill_threshold,
+            opk_refill_target
+        )
+
+        self.__ik      = KeyPair.deserialize(serialized["ik"])
+        self.__spk     = SignedPreKeyPair.deserialize(serialized["spk"])
+        self.__old_spk = None
+        self.__opks    = [ KeyPair.deserialize(opk) for opk in serialized["opks"] ]
+
+        if serialized["old_spk"] is not None:
+            self.__old_spk = SignedPreKeyPair.deserialize(serialized["old_spk"])
+
+        publish = self.__refill_opks() or publish
+        publish = self.__rotate_spk() or publish
+        if publish:
+            await self.__publish_bundle()
 
         return self
 
-    ##################
-    # key generation #
-    ##################
-    
-    @changes
-    def __generateIK(self):
-        """
-        Generate an IK. This should only be done once.
-        """
+    #################################
+    # key generation and management #
+    #################################
 
-        self.__ik = self.__KeyPair.generate()
-    
-    @changes
-    def __generateSPK(self):
-        """
-        Generate a new PK and sign its public key using the IK, add the timestamp aswell
-        to allow for periodic rotations.
-        """
+    def __generate_ik(self) -> KeyPair:
+        if self.__internal_ik_type is CurveType.Mont:
+            return self.__generate_mont_key_pair()
 
-        key = self.__KeyPair.generate()
+        if self.__internal_ik_type is CurveType.Ed:
+            return self.__generate_ed_key_pair()
 
-        key_serialized = self.__PublicKeyEncoder.encodePublicKey(
-            key.pub,
-            self.__curve
+    def __generate_spk(self) -> SignedPreKeyPair:
+        key = self.__generate_mont_key_pair()
+
+        pub_encoded = self._encode_public_key(self.__curve, CurveType.Mont, key.pub)
+
+        sig: bytes
+
+        if self.__curve is Curve.Curve25519:
+            if self.__internal_ik_type is CurveType.Mont:
+                sig = XEdDSA25519(mont_priv=self.__ik.priv).sign(pub_encoded)
+
+            if self.__internal_ik_type is CurveType.Ed:
+                sig = libnacl.crypto_sign_detached(pub_encoded, self.__ik.priv)
+
+        if self.__curve is Curve.Curve448:
+            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+
+        return SignedPreKeyPair(key=key, sig=sig, timestamp=int(time.time()))
+
+    def __rotate_spk(self) -> bool:
+        if time.time() - self.__spk.timestamp > self.__spk_timeout * 24 * 60 * 60:
+            self.__old_spk = self.__spk
+            self.__spk = self.__generate_spk()
+
+            return True
+
+        return False
+
+    def __refill_opks(self) -> bool:
+        if len(self.__opks) < self.__opk_refill_threshold:
+            while len(self.__opks) < self.__opk_refill_target:
+                self.__opks.append(self.__generate_mont_key_pair())
+
+            return True
+
+        return False
+
+    #####################
+    # bundle management #
+    #####################
+
+    @property
+    def __bundle(self) -> Bundle:
+        return Bundle(
+            ik      = self.__ik_pub_external,
+            spk     = self.__spk.key.pub,
+            spk_sig = self.__spk.sig,
+            opks    = [ opk.pub for opk in self.__opks ]
         )
 
-        signature = self.__XEdDSA(mont_priv = self.__ik.priv).sign(key_serialized)
+    async def __publish_bundle(self) -> None:
+        await self._publish_bundle(self.__bundle)
 
-        self.__spk = {
-            "key": key,
-            "signature": signature,
-            "timestamp": time.time()
-        }
-
-    @changes
-    def __generateOTPKs(self, num_otpks = None):
+    @property
+    def ik_mont(self) -> bytes:
         """
-        Generate the given amount of OTPKs.
-
-        :param num_otpks: Either an integer or None.
-
-        If the value of num_otpks is None, set it to the max_num_otpks value of the
-        configuration.
+        Returns:
+            The public part of the identity key, in its Montgomery form.
         """
 
-        if num_otpks == None:
-            num_otpks = self.__max_num_otpks
-        
-        otpks = []
+        return self.__ik_pub_mont
 
-        for _ in range(num_otpks):
-            otpks.append(self.__KeyPair.generate())
+    @property
+    def ik_ed(self) -> bytes:
+        """
+        Returns:
+            The public part of the identity key, in its twisted Edwards form.
+        """
 
-        try:
-            self.__otpks.extend(otpks)
-        except AttributeError:
-            self.__otpks = otpks
+        return self.__ik_pub_ed
 
     ####################
     # internal helpers #
     ####################
 
-    def __kdf(self, secret_key_material):
-        """
-        :param secret_key_material: A bytes-like object encoding the secret key material.
-        :returns: A bytes-like object encoding the shared secret key.
-        """
+    def __generate_mont_key_pair(self) -> KeyPair:
+        if self.__curve is Curve.Curve25519:
+            pub, priv = libnacl.crypto_box_keypair()
+            return KeyPair(priv=priv, pub=pub)
 
-        salt = b"\x00" * self.__hash_function().digest_size
+        if self.__curve is Curve.Curve448:
+            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
 
-        if self.__curve == "25519":
-            input_key_material = b"\xFF" * 32
-        if self.__curve == "448":
-            input_key_material = b"\xFF" * 57
+    def __generate_ed_key_pair(self) -> KeyPair:
+        if self.__curve is Curve.Curve25519:
+            pub, priv = libnacl.crypto_sign_keypair()
+            return KeyPair(priv=priv, pub=pub)
 
-        input_key_material += secret_key_material
+        if self.__curve is Curve.Curve448:
+            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
 
-        hkdf = HKDF(
-            algorithm=self.__hash_function(),
+    @property
+    def __ik_priv_mont(self) -> bytes:
+        if self.__internal_ik_type is CurveType.Mont:
+            return self.__ik.priv
+
+        if self.__internal_ik_type is CurveType.Ed:
+            if self.__curve is Curve.Curve25519:
+                return libnacl.crypto_sign_ed25519_sk_to_curve25519(self.__ik.priv)
+
+            if self.__curve is Curve.Curve448:
+                raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+
+    @property
+    def __ik_pub_mont(self) -> bytes:
+        return self.__convert_pub(self.__internal_ik_type, CurveType.Mont, self.__ik.pub)
+
+    @property
+    def __ik_pub_ed(self) -> bytes:
+        return self.__convert_pub(self.__internal_ik_type, CurveType.Ed, self.__ik.pub)
+
+    @property
+    def __ik_pub_external(self) -> bytes:
+        return self.__convert_pub(self.__internal_ik_type, self.__external_ik_type, self.__ik.pub)
+
+    def __ik_pub_external_to_mont(self, pub: bytes) -> bytes:
+        return self.__convert_pub(self.__external_ik_type, CurveType.Mont, pub)
+
+    def __ik_pub_external_to_ed(self, pub: bytes) -> bytes:
+        return self.__convert_pub(self.__external_ik_type, CurveType.Ed, pub)
+
+    def __convert_pub(self, from_type: CurveType, to_type: CurveType, pub: bytes) -> bytes:
+        if from_type is CurveType.Mont:
+            if to_type is CurveType.Mont:
+                return pub
+
+            if to_type is CurveType.Ed:
+                if self.__curve is Curve.Curve25519:
+                    return XEdDSA25519.mont_pub_to_ed_pub(pub)
+
+                if self.__curve is Curve.Curve448:
+                    raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+
+        if from_type is CurveType.Ed:
+            if to_type is CurveType.Mont:
+                if self.__curve is Curve.Curve25519:
+                    return libnacl.crypto_sign_ed25519_pk_to_curve25519(pub)
+
+                if self.__curve is Curve.Curve448:
+                    raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+
+            if to_type is CurveType.Ed:
+                return pub
+
+    def __diffie_hellman(self, priv: bytes, pub: bytes) -> bytes:
+        if self.__curve is Curve.Curve25519:
+            return crypto_scalarmult(priv, pub)
+
+        if self.__curve is Curve.Curve448:
+            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+
+    def __key_derivation(self, secret_key_material: bytes) -> bytes:
+        hash_function: hashes.HashAlgorithm
+
+        if self.__hash_function is HashFunction.SHA_256:
+            hash_function = hashes.SHA256()
+            salt = b"\x00" * 32
+        if self.__hash_function is HashFunction.SHA_512:
+            hash_function = hashes.SHA512()
+            salt = b"\x00" * 64
+
+        if self.__curve is Curve.Curve25519:
+            padding = b"\xFF" * 32
+        if self.__curve is Curve.Curve448:
+            padding = b"\xFF" * 57
+
+        info = self.__info_string.encode("ASCII", errors="strict")
+
+        return HKDF(
+            algorithm=hash_function,
             length=32,
             salt=salt,
-            info=self.__info_string,
-            backend=self.__class__.CRYPTOGRAPHY_BACKEND
-        )
+            info=info,
+            backend=default_backend()
+        ).derive(padding + secret_key_material)
 
-        return hkdf.derive(input_key_material)
+    #################
+    # key agreement #
+    #################
 
-    ##################
-    # key management #
-    ##################
-
-    def __checkSPKTimestamp(self):
-        """
-        Check whether the SPK is too old and generate a new one in that case.
-        """
-
-        if time.time() - self.__spk["timestamp"] > self.__spk_timeout:
-            self.__generateSPK()
-
-    def __refillOTPKs(self):
-        """
-        If the amount of available OTPKs fell under the minimum, refills the OTPKs up to
-        the maximum limit again.
-        """
-
-        remainingOTPKs = len(self.__otpks)
-
-        if remainingOTPKs < self.__min_num_otpks:
-            self.__generateOTPKs(self.__max_num_otpks - remainingOTPKs)
-
-    @changes
-    def hideFromPublicBundle(self, otpk_pub):
-        """
-        Hide a one-time pre key from the public bundle.
-
-        :param otpk_pub: The public key of the one-time pre key to hide, encoded as a
-            bytes-like object.
-        """
-
-        self.__checkSPKTimestamp()
-
-        for otpk in self.__otpks:
-            if otpk.pub == otpk_pub:
-                self.__otpks.remove(otpk)
-                self.__hidden_otpks.append(otpk)
-                self.__refillOTPKs()
-
-    @changes
-    def deleteOTPK(self, otpk_pub):
-        """
-        Delete a one-time pre key, either publicly visible or hidden.
-
-        :param otpk_pub: The public key of the one-time pre key to delete, encoded as a
-            bytes-like object.
-        """
-
-        self.__checkSPKTimestamp()
-
-        for otpk in self.__otpks:
-            if otpk.pub == otpk_pub:
-                self.__otpks.remove(otpk)
-
-        for otpk in self.__hidden_otpks:
-            if otpk.pub == otpk_pub:
-                self.__hidden_otpks.remove(otpk)
-
-        self.__refillOTPKs()
-
-    ############################
-    # public bundle management #
-    ############################
-
-    def getPublicBundle(self):
-        """
-        Fill a PublicBundle object with the public bundle data of this State.
-
-        :returns: An instance of PublicBundle, filled with the public data of this State.
-        """
-
-        self.__checkSPKTimestamp()
-
-        ik_pub    = self.__ik.pub
-        spk_pub   = self.__spk["key"].pub
-        spk_sig   = self.__spk["signature"]
-        otpk_pubs = [ otpk.pub for otpk in self.__otpks ]
-
-        return PublicBundle(ik_pub, spk_pub, spk_sig, otpk_pubs)
-
-    @property
-    def changed(self):
-        """
-        Read, whether this State has changed since it was loaded/since this flag was last
-        cleared.
-
-        :returns: A boolean indicating, whether the public bundle data has changed since
-            last reading this flag.
-
-        Clears the flag when reading.
-        """
-
-        self.__checkSPKTimestamp()
-
-        changed = self._changed
-        self._changed = False
-        return changed
-
-    ################
-    # key exchange #
-    ################
-
-    def getSharedSecretActive(
+    async def get_shared_secret_active(
         self,
-        other_public_bundle,
-        allow_zero_otpks = False
-    ):
+        bundle: Bundle,
+        ad_appendix: bytes = b"",
+        require_opk: bool = True
+    ) -> SharedSecretActive:
+        # pylint: disable=invalid-name
         """
-        Do the key exchange, as the active party. This involves selecting keys from the
-        passive parties' public bundle.
+        Perform an X3DH key agreement, actively.
 
-        :param other_public_bundle: An instance of PublicBundle, filled with the public
-            data of the passive party.
-        :param allow_zero_otpks: A flag indicating whether bundles with no one-time pre
-            keys are allowed or throw an error. False is the recommended default.
-        :returns: A dictionary containing the shared secret, the shared associated data
-            and the data the passive party needs to finalize the key exchange.
+        Args:
+            bundle: The bundle of the passive party.
+            ad_appendix: Additional information to append to the associated data, like usernames, certificates
+                or other identifying information.
+            require_opk: If set to `True`, the key agreement is aborted if `bundle` does not contain a
+                one-time pre key.
 
-        The returned structure looks like this::
-        
-            {
-                "to_other": {
-                    # The public key of the active parties' identity key pair
-                    "ik": bytes,
+        Returns:
+            The shared secret and the header required by the passive party to complete their side of the key
+            agreement.
 
-                    # The public key of the active parties' ephemeral key pair
-                    "ek": bytes,
-
-                    # The public key of the used passive parties' one-time pre key or None
-                    "otpk": bytes or None,
-
-                    # The public key of the passive parties' signed pre key pair
-                    "spk": bytes
-                },
-                "ad": bytes, # The shared associated data
-                "sk": bytes  # The shared secret
-            }
-
-        :raises KeyExchangeException: If an error occurs during the key exchange. The
-            exception message will contain (human-readable) details.
+        Raises:
+            KeyExchangeException: If an error occurs during the key agreement. The exception message will
+                contain (human-readable) details.
         """
 
-        self.__checkSPKTimestamp()
+        if len(bundle.opks) == 0 and require_opk:
+            raise KeyExchangeException("This bundle does not contain a one-time pre key.")
 
-        other_ik = self.__KeyPair(pub = other_public_bundle.ik)
+        spk_encoded = self._encode_public_key(self.__curve, CurveType.Mont, bundle.spk)
 
-        other_spk = {
-            "key": self.__KeyPair(pub = other_public_bundle.spk),
-            "signature": other_public_bundle.spk_signature
-        }
-
-        other_otpks = [
-            self.__KeyPair(pub = otpk) for otpk in other_public_bundle.otpks
-        ]
-
-        if len(other_otpks) == 0 and not allow_zero_otpks:
-            raise KeyExchangeException(
-                "The other public bundle does not contain any OTPKs, which is not " +
-                "allowed."
-            )
-
-        other_spk_serialized = self.__PublicKeyEncoder.encodePublicKey(
-            other_spk["key"].pub,
-            self.__curve
-        )
-
-        if not self.__XEdDSA(mont_pub = other_ik.pub).verify(
-            other_spk_serialized,
-            other_spk["signature"]
-        ):
-            raise KeyExchangeException(
-                "The signature of this public bundle's spk could not be verifified."
-            )
-
-        ek = self.__KeyPair.generate()
-
-        dh1 = self.__ik.getSharedSecret(other_spk["key"])
-        dh2 = ek.getSharedSecret(other_ik)
-        dh3 = ek.getSharedSecret(other_spk["key"])
-        dh4 = b""
-
-        otpk = None
-        if len(other_otpks) > 0:
-            otpk_index = ord(os.urandom(1)) % len(other_otpks)
-            otpk = other_otpks[otpk_index]
-
-            dh4 = ek.getSharedSecret(otpk)
-
-        sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
-
-        ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
-            self.__ik.pub,
-            self.__curve
-        )
-
-        other_ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
-            other_ik.pub,
-            self.__curve
-        )
-
-        ad = ik_pub_serialized + other_ik_pub_serialized
-
-        return {
-            "to_other": {
-                "ik": self.__ik.pub,
-                "ek": ek.pub,
-                "otpk": otpk.pub if otpk else None,
-                "spk": other_spk["key"].pub
-            },
-            "ad": ad,
-            "sk": sk
-        }
-
-    def getSharedSecretPassive(
-        self,
-        passive_exchange_data,
-        allow_no_otpk = False,
-        keep_otpk = False
-    ):
-        """
-        Do the key exchange, as the passive party. This involves retrieving data about the
-        key exchange from the active party.
-
-        :param passive_exchange_data: A structure generated by the active party, which
-            contains data requried to complete the key exchange. See the "to_other" part
-            of the structure returned by "getSharedSecretActive".
-        :param allow_no_otpk: A boolean indicating whether to allow key exchange, even if
-            the active party did not use a one-time pre key. The recommended default is
-            False.
-        :param keep_otpk: Keep the one-time pre key after using it, instead of deleting
-            it. See the notes below.
-        :returns: A dictionary containing the shared secret and the shared associated
-            data.
-
-        The returned structure looks like this::
-        
-            {
-                "ad": bytes, # The shared associated data
-                "sk": bytes  # The shared secret
-            }
-
-        The specification of X3DH dictates to delete one-time pre keys as soon as they are
-        used.
-
-        This behaviour provides security but may lead to considerable usability downsides
-        in some environments.
-
-        For that reason the keep_otpk flag exists.
-        If set to True, the one-time pre key is not automatically deleted.
-        USE WITH CARE, THIS MAY INTRODUCE SECURITY LEAKS IF USED INCORRECTLY.
-        If you decide to set the flag and to keep the otpks, you have to manage deleting
-        them yourself, e.g. by subclassing this class and overriding this method.
-
-        :raises KeyExchangeException: If an error occurs during the key exchange. The
-            exception message will contain (human-readable) details.
-        """
-
-        self.__checkSPKTimestamp()
-
-        other_ik = self.__KeyPair(pub = passive_exchange_data["ik"])
-        other_ek = self.__KeyPair(pub = passive_exchange_data["ek"])
-
-        if self.__spk["key"].pub != passive_exchange_data["spk"]:
-            raise KeyExchangeException(
-                "The SPK used for this key exchange has been rotated, the key exchange " +
-                "can not be completed."
-            )
-
-        my_otpk = None
-        if "otpk" in passive_exchange_data:
-            for otpk in self.__otpks:
-                if otpk.pub == passive_exchange_data["otpk"]:
-                    my_otpk = otpk
-                    break
-
-            for otpk in self.__hidden_otpks:
-                if otpk.pub == passive_exchange_data["otpk"]:
-                    my_otpk = otpk
-                    break
-
-            if not my_otpk:
-                raise KeyExchangeException(
-                    "The OTPK used for this key exchange has been deleted, the key " +
-                    "exchange can not be completed."
+        if self.__curve is Curve.Curve25519:
+            try:
+                libnacl.crypto_sign_verify_detached(
+                    bundle.spk_sig,
+                    spk_encoded,
+                    self.__ik_pub_external_to_ed(bundle.ik)
                 )
-        elif not allow_no_otpk:
+            except ValueError:
+                raise KeyExchangeException(
+                    "The signature of this bundle's signed pre key could not be verified."
+                )
+
+        if self.__curve is Curve.Curve448:
+            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+
+        DH  = self.__diffie_hellman
+        KDF = self.__key_derivation
+
+        EK = self.__generate_mont_key_pair()
+
+        DH1 = DH(self.__ik_priv_mont, bundle.spk)
+        DH2 = DH(EK.priv, self.__ik_pub_external_to_mont(bundle.ik))
+        DH3 = DH(EK.priv, bundle.spk)
+        DH4 = b""
+
+        opk = None
+        if len(bundle.opks) > 0:
+            opk = secrets.choice(bundle.opks)
+
+            DH4 = DH(EK.priv, opk)
+
+        SK = KDF(DH1 + DH2 + DH3 + DH4)
+
+        own_ik_external    = self.__ik_pub_external
+        active_ik_encoded  = self._encode_public_key(self.__curve, self.__external_ik_type, own_ik_external)
+        passive_ik_encoded = self._encode_public_key(self.__curve, self.__external_ik_type, bundle.ik)
+
+        ad = active_ik_encoded + passive_ik_encoded + ad_appendix
+
+        if self.__rotate_spk():
+            await self.__publish_bundle()
+
+        return SharedSecretActive(shared_secret=SK, associated_data=ad, header=Header(
+            ik  = own_ik_external,
+            ek  = EK.pub,
+            opk = opk,
+            spk = bundle.spk
+        ))
+
+    async def get_shared_secret_passive(
+        self,
+        header: Header,
+        ad_appendix: bytes = b"",
+        require_opk: bool = True
+    ) -> SharedSecretPassive:
+        # pylint: disable=invalid-name
+        """
+        Perform an X3DH key agreement, passively.
+
+        Args:
+            header: The header received from the active party.
+            ad_appendix: Additional information to append to the associated data, like usernames, certificates
+                or other identifying information.
+            require_opk: If set to `True`, the key agreement is aborted if the active party did not use a
+                one-time pre key.
+
+        Returns:
+            The shared secret.
+
+        Raises:
+            KeyExchangeException: If an error occurs during the key agreement. The exception message will
+                contain (human-readable) details.
+        """
+
+        publish = False
+
+        spk = None
+
+        if header.spk == self.__spk.key.pub:
+            spk = self.__spk
+
+        if self.__old_spk is not None and header.spk == self.__old_spk.key.pub:
+            spk = self.__old_spk
+
+        if spk is None:
             raise KeyExchangeException(
-                "This key exchange data does not contain an OTPK, which is not allowed."
+                "This key agreement attempt uses a signed pre key that is not available any more."
             )
 
-        dh1 = self.__spk["key"].getSharedSecret(other_ik)
-        dh2 = self.__ik.getSharedSecret(other_ek)
-        dh3 = self.__spk["key"].getSharedSecret(other_ek)
-        dh4 = b""
-        
-        if my_otpk:
-            dh4 = my_otpk.getSharedSecret(other_ek)
+        if header.opk is None and require_opk:
+            raise KeyExchangeException("This key agreement attempt does not use a one-time pre key.")
 
-        sk = self.__kdf(dh1 + dh2 + dh3 + dh4)
+        DH  = self.__diffie_hellman
+        KDF = self.__key_derivation
 
-        other_ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
-            other_ik.pub,
-            self.__curve
-        )
+        DH1 = DH(spk.key.priv, self.__ik_pub_external_to_mont(header.ik))
+        DH2 = DH(self.__ik_priv_mont, header.ek)
+        DH3 = DH(spk.key.priv, header.ek)
+        DH4 = b""
 
-        ik_pub_serialized = self.__PublicKeyEncoder.encodePublicKey(
-            self.__ik.pub,
-            self.__curve
-        )
+        if header.opk is not None:
+            opks = list(filter(lambda opk: opk.pub == header.opk, self.__opks))
+            if len(opks) != 1:
+                raise KeyExchangeException(
+                    "This key agreement attempt uses a one-time pre key that is not available any more."
+                )
 
-        ad = other_ik_pub_serialized + ik_pub_serialized
+            opk = opks[0]
 
-        if my_otpk and not keep_otpk:
-            self.deleteOTPK(my_otpk.pub)
+            DH4 = DH(opk.priv, header.ek)
 
-        return {
-            "ad": ad,
-            "sk": sk
-        }
+            self.__opks = list(filter(lambda opk: opk.pub != header.opk, self.__opks))
+            self.__refill_opks()
 
-    @property
-    def spk(self):
-        """
-        :returns: The signed pre key pair as an instance of KeyPair.
-        """
+            publish = True
 
-        self.__checkSPKTimestamp()
+        SK = KDF(DH1 + DH2 + DH3 + DH4)
 
-        return self.__spk["key"]
+        own_ik_external    = self.__ik_pub_external
+        active_ik_encoded  = self._encode_public_key(self.__curve, self.__external_ik_type, header.ik)
+        passive_ik_encoded = self._encode_public_key(self.__curve, self.__external_ik_type, own_ik_external)
 
-    @property
-    def spk_signature(self):
-        """
-        :returns: The signature that was created using the identity key to sign the
-            encoded public key of the signed pre key pair. The signature is encoded as a
-            bytes-like object.
-        """
+        ad = active_ik_encoded + passive_ik_encoded + ad_appendix
 
-        self.__checkSPKTimestamp()
+        publish = self.__rotate_spk() or publish
+        if publish:
+            await self.__publish_bundle()
 
-        return self.__spk["signature"]
-
-    @property
-    def ik(self):
-        """
-        :returns: The identity key pair as an instance of KeyPair.
-        """
-
-        self.__checkSPKTimestamp()
-
-        return self.__ik
-
-    @property
-    def otpks(self):
-        """
-        :returns: A list of all public one-time pre keys, as instances of KeyPair.
-        """
-
-        self.__checkSPKTimestamp()
-
-        return self.__otpks
-
-    @property
-    def hidden_otpks(self):
-        """
-        :returns: A list of all hidden one-time pre keys, as instances of KeyPair.
-        """
-
-        self.__checkSPKTimestamp()
-
-        return self.__hidden_otpks
+        return SharedSecretPassive(shared_secret=SK, associated_data=ad)

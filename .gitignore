@@ -1,11 +1,10 @@
+.eggs/
 build/
 dist/
 X3DH.egg-info/
-*.pyc
 
+*.pyc
 .pytest_cache/
+.mypy_cache/
 
 docs/_build/
-
-install.sh
-Makefile

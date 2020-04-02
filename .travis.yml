@@ -1,17 +1,39 @@
+os: linux
+dist: bionic
+
 language: python
 python:
-  - "2.7"
-  - "3.4"
-  - "3.5"
-  - "3.6"
+- "3.6"
+- "3.7"
+- "3.8"
+- "pypy3"
 
 env:
-  - CRYPTOGRAPHY_VERSION=2.2.2 # Most recent version on pip
-  - CRYPTOGRAPHY_VERSION=1.7.1 # Version in Debian 9's apt repositories
+- DEBIAN_DEPS=true
+- DEBIAN_DEPS=
+
+addons:
+  apt:
+    packages:
+    - libsodium23
+    - libsodium-dev
 
 install:
-  - pip install cryptography==$CRYPTOGRAPHY_VERSION
-  - pip install pytest
-  - python setup.py install
+- python -m pip install --upgrade pip setuptools wheel
+- python -m pip --version
+- python -m pip install --upgrade pytest pytest-asyncio pylint
+- if [ "$TRAVIS_PYTHON_VERSION" != "pypy3" ] && [ ! $DEBIAN_DEPS ]; then python -m pip install --upgrade mypy; fi
+- if [   $DEBIAN_DEPS ]; then python -m pip install --upgrade cryptography==2.6.1 libnacl==1.6.1 packaging==19.0; fi
+- if [ ! $DEBIAN_DEPS ]; then python -m pip install --upgrade cryptography        libnacl        packaging; fi
+- git clone https://github.com/Syndace/python-xeddsa.git -b stable
+- cd python-xeddsa/ && python -m pip install . && cd ../
+- rm -rf python-xeddsa/
+- python -m pip install .
 
-script: py.test
+script:
+- export MYPYPATH=stubs/
+- if [ "$TRAVIS_PYTHON_VERSION" != "pypy3" ] && [ ! $DEBIAN_DEPS ]; then python -m mypy --strict x3dh/; fi
+- if [ "$TRAVIS_PYTHON_VERSION" != "pypy3" ] && [ ! $DEBIAN_DEPS ]; then python -m mypy --strict tests/; fi
+- python -m pylint x3dh/
+- python -m pylint tests/*.py
+- python -m pytest

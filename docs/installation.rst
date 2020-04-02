@@ -1,0 +1,6 @@
+Installation
+============
+
+python-x3dh depends on two system libraries, `libxeddsa <https://github.com/Syndace/libxeddsa>`_ and `libsodium <https://download.libsodium.org/doc/>`_.
+
+Install the latest release using pip (``pip install X3DH``) or manually from source by running ``pip install .`` (preferred) or ``python setup.py install`` in the cloned repository. The installation requires libsodium and the Python development headers to be installed. If a locally installed version of libxeddsa is available, `python-xeddsa <https://github.com/Syndace/python-xeddsa>`_ (a dependency of python-x3dh) tries to use that. Otherwise it uses prebuilt binaries of the library, which are available for Linux, MacOS and Windows on the amd64 architecture. Set the ``LIBXEDDSA_FORCE_LOCAL`` environment variable to forbid the usage of prebuilt binaries.
