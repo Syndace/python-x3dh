@@ -213,6 +213,11 @@ class State:
             An encoding of the public key, possibly including information about the curve and type of key,
             though this is application defined. Note that two different public keys must never result in the
             same byte sequence, uniqueness of the public keys must be preserved.
+
+        Note:
+            This method is called from :meth:`create`, before :meth:`create` has returned the instance. Thus,
+            modifications to the object (``self``, in case of subclasses) may not have happened when this
+            method is called.
         """
 
         raise NotImplementedError("Create a subclass of X3DH and implement `_encode_public_key`.")
