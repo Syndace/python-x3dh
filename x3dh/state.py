@@ -300,28 +300,14 @@ class State:
         if version < version_1_0_0:
             # Migrate pre-stable serialization format
             assert_type(serialized, "changed", bool)
-            assert_type(serialized, "ik", dict)
-            assert_type(serialized["ik"], "priv", str)
-            assert_type(serialized["ik"], "pub",  str)
+            assert "ik" in serialized
             assert_type(serialized, "spk", dict)
-            assert_type(serialized["spk"], "key", dict)
-            assert_type(serialized["spk"]["key"], "priv", str)
-            assert_type(serialized["spk"]["key"], "pub",  str)
+            assert "key" in serialized["spk"]
             assert_type(serialized["spk"], "signature", str)
             assert_type(serialized["spk"], "timestamp", float)
-            assert_type(serialized, "otpks", list)
+            assert "otpks" in serialized
 
             publish = serialized["changed"] or publish
-
-            pre_stable_opks: List[Dict[str, str]] = []
-
-            for opk in serialized["otpks"]:
-                assert isinstance(opk, dict)
-
-                assert_type(opk, "priv", str)
-                assert_type(opk, "pub",  str)
-
-                pre_stable_opks.append({ "priv": opk["priv"], "pub":  opk["pub"] })
 
             warnings.warn(
                 "Importing pre-stable state, the compatibility of the configuration (curve, identity key"
@@ -329,20 +315,14 @@ class State:
             )
 
             serialized = {
-                "ik": {
-                    "priv": serialized["ik"]["priv"],
-                    "pub":  serialized["ik"]["pub"]
-                },
+                "ik": serialized["ik"],
                 "spk": {
-                    "key": {
-                        "priv": serialized["spk"]["key"]["priv"],
-                        "pub":  serialized["spk"]["key"]["pub"]
-                    },
+                    "key": serialized["spk"]["key"],
                     "sig": serialized["spk"]["signature"],
                     "timestamp": int(serialized["spk"]["timestamp"])
                 },
                 "old_spk": None,
-                "opks": pre_stable_opks,
+                "opks": serialized["otpks"],
                 "curve": curve.name,
                 "internal_ik_type": internal_ik_type.name,
                 "external_ik_type": external_ik_type.name,
