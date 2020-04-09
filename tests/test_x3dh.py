@@ -40,7 +40,8 @@ class ExampleState(x3dh.State):
     async def _publish_bundle(self, bundle: x3dh.Bundle) -> Any:
         bundles[bundle.ik] = bundle
 
-    def _encode_public_key(self, curve: x3dh.Curve, key_type: x3dh.CurveType, pub: bytes) -> bytes:
+    @staticmethod
+    def _encode_public_key(curve: x3dh.Curve, key_type: x3dh.CurveType, pub: bytes) -> bytes:
         curve_indicator: bytes = curve.value.encode("ASCII")
         key_type_indicator: bytes = key_type.value.encode("ASCII")
 

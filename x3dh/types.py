@@ -1,6 +1,114 @@
-import base64
+from base64 import b64encode, b64decode
+import binascii
 from enum import Enum
-from typing import List, NamedTuple, Optional, Dict, Any, TypeVar, Type, Union
+import json
+from typing import List, NamedTuple, Optional, Dict, Any, TypeVar, Type, Union, Callable
+
+# All TypeVars here to avoid name clashes
+A = TypeVar("A")
+B = TypeVar("B")
+K = TypeVar("K", bound="KeyPair")
+P = TypeVar("P", bound="SignedPreKeyPair")
+
+#####################
+# Assertion Toolkit #
+#####################
+
+class TypeAssertionException(TypeError):
+    pass
+
+def assert_in(obj: Dict[Any, Any], key: str) -> Any:
+    """
+    Asserts that `obj` contains an element `key` and returns the corresponding element.
+
+    Raises:
+        TypeAssertionException: if the object does not contain the expected key.
+    """
+
+    if key not in obj:
+        raise TypeAssertionException("Dictionary `{}` does not contain key `{}`.".format(obj, key))
+
+    return obj[key]
+
+def assert_type(expected_type: Type[A], obj: Any, key: Optional[str] = None) -> A:
+    """
+    Args:
+        expected_type: The excpected type of `obj`.
+        obj: The object to type check.
+        key: If given, the object is treated as a dictionary and `obj[key]` is type checked instead of `obj`.
+
+    Returns:
+        The type checked and correctly typed object.
+
+    Raises:
+        TypeAssertionException: if the object is not of the expected type.
+    """
+
+    if key is not None:
+        obj = assert_in(assert_type(dict, obj), key)
+
+    if not isinstance(obj, expected_type):
+        raise TypeAssertionException("Object `{}` is not of type `{}` but `{}`.".format(
+            obj,
+            expected_type,
+            type(obj)
+        ))
+
+    return obj
+
+def assert_decode_json(expected_type: Type[A], json_encoded: str) -> A:
+    """
+    Asserts that `json_encoded` contains valid JSON, deserializes the JSON and checks that the resulting
+    object has the expected type.
+
+    Raises:
+        TypeAssertionException: if the string does not contain valid JSON or the deserialized JSON is not of
+            the expected type.
+    """
+
+    try:
+        return assert_type(expected_type, json.loads(json_encoded))
+    except json.JSONDecodeError as e:
+        raise TypeAssertionException("The string `{}` does not contain valid JSON.".format(
+            json_encoded
+        )) from e
+
+def assert_decode_base64(base64_encoded: str) -> bytes:
+    """
+    Asserts that `base64_encoded` is ASCII-encodable and contains valid base64 encoded data, deserializes and
+    returns it.
+
+    Raises:
+        TypeAssertionException: if the string is not ASCII-encodable or does not contain valid base64 encoded
+            data.
+    """
+
+    try:
+        return b64decode(base64_encoded.encode("ASCII", errors="strict"), validate=True)
+    except UnicodeEncodeError as e:
+        raise TypeAssertionException("The string `{}` is not ASCII-encodable.".format(
+            base64_encoded
+        )) from e
+    except binascii.Error as e:
+        raise TypeAssertionException("The string `{}` does not contain valid base64 encoded data.".format(
+            base64_encoded
+        )) from e
+
+###########
+# Helpers #
+###########
+
+def maybe(obj: Optional[A], func: Callable[[A], B]) -> Optional[B]:
+    if obj is not None:
+        return func(obj)
+
+    return None
+
+def maybe_or(obj: Optional[A], func: Callable[[A], B], exc: BaseException) -> B:
+    if obj is not None:
+        return func(obj)
+
+    raise exc
 
 ################
 # Type Aliases #
@@ -32,10 +140,10 @@ class Bundle(NamedTuple):
     bundle to perform a key agreement.
     """
 
-    ik:      bytes
-    spk:     bytes
+    ik: bytes
+    spk: bytes
     spk_sig: bytes
-    opks:    List[bytes]
+    opks: List[bytes]
 
 Bundle.ik.__doc__ = (
     "The public part of the identity key. Length and encoding depend on the curve (25519 vs. 448) and the"
@@ -63,39 +171,33 @@ class Header(NamedTuple):
     opk: Optional[bytes]
 
 class SharedSecretActive(NamedTuple):
-    shared_secret:   bytes
+    shared_secret: bytes
     associated_data: bytes
-    header:          Header
+    header: Header
 
 class SharedSecretPassive(NamedTuple):
-    shared_secret:   bytes
+    shared_secret: bytes
     associated_data: bytes
 
-K = TypeVar("K", bound="KeyPair")
 class KeyPair(NamedTuple):
     priv: bytes
-    pub:  bytes
+    pub: bytes
 
     def serialize(self) -> KeyPairSerialized:
         return {
-            "priv": base64.b64encode(self.priv).decode("ASCII"),
-            "pub":  base64.b64encode(self.pub).decode("ASCII")
+            "priv" : b64encode(self.priv).decode("ASCII"),
+            "pub"  : b64encode(self.pub).decode("ASCII")
         }
 
     @classmethod
     def deserialize(cls: Type[K], serialized: JSONType) -> K:
-        assert isinstance(serialized, dict)
-        assert "priv" in serialized
-        assert "pub"  in serialized
-        assert isinstance(serialized["priv"], str)
-        assert isinstance(serialized["pub"],  str)
+        root = assert_type(dict, serialized)
 
         return cls(
-            priv = base64.b64decode(serialized["priv"].encode("ASCII")),
-            pub  = base64.b64decode(serialized["pub"].encode("ASCII"))
+            priv = assert_decode_base64(assert_type(str, root, "priv")),
+            pub  = assert_decode_base64(assert_type(str, root, "pub"))
         )
 
-P = TypeVar("P", bound="SignedPreKeyPair")
 class SignedPreKeyPair(NamedTuple):
     key: KeyPair
     sig: bytes
@@ -104,24 +206,18 @@ class SignedPreKeyPair(NamedTuple):
     def serialize(self) -> SignedPreKeyPairSerialized:
         return {
             "key": self.key.serialize(),
-            "sig": base64.b64encode(self.sig).decode("ASCII"),
+            "sig": b64encode(self.sig).decode("ASCII"),
             "timestamp": self.timestamp
         }
 
     @classmethod
     def deserialize(cls: Type[P], serialized: JSONType) -> P:
-        assert isinstance(serialized, dict)
-        assert "key" in serialized
-        assert "sig" in serialized
-        assert "timestamp" in serialized
-
-        assert isinstance(serialized["sig"], str)
-        assert isinstance(serialized["timestamp"], int)
+        root = assert_type(dict, serialized)
 
         return cls(
-            key = KeyPair.deserialize(serialized["key"]),
-            sig = base64.b64decode(serialized["sig"].encode("ASCII")),
-            timestamp = serialized["timestamp"]
+            key = KeyPair.deserialize(assert_in(root, "key")),
+            sig = assert_decode_base64(assert_type(str, root, "sig")),
+            timestamp = assert_type(int, root, "timestamp")
         )
 
 ################

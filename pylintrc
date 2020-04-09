@@ -354,7 +354,7 @@ good-names=i,
            _,
            f, # File Descriptors
            w, # Warnings
-           S, K, P, # Generic type variable names
+           A, B, S, K, P, # Generic type variable names
            ik # Domain-specific two-letter variable names
 
 # Include a hint for the correct naming format with invalid-name.
@@ -488,7 +488,7 @@ max-bool-expr=5
 max-branches=12
 
 # Maximum number of locals for function / method body.
-max-locals=20
+max-locals=15
 
 # Maximum number of parents for a class (see R0901).
 max-parents=7

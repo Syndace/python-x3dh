@@ -1,7 +1,7 @@
 import ctypes
 import time
 import secrets
-from typing import TypeVar, Type, Optional, List, Any, Dict
+from typing import TypeVar, Type, Optional, List, Any
 import warnings
 
 from cryptography.hazmat.primitives import hashes
@@ -12,11 +12,14 @@ from packaging.version import parse as parse_version
 from xeddsa import XEdDSA25519
 
 from .types import (
+    # Assertion Toolkit
+    assert_in,
+    assert_type,
+
     # Type Aliases
     JSONType,
-
-    #KeyPairSerialized,
-    #SignedPreKeyPairSerialized,
+    KeyPairSerialized,
+    SignedPreKeyPairSerialized,
     StateSerialized,
 
     # Structures (NamedTuples)
@@ -43,12 +46,12 @@ from .version import __version__
 # This is not exported by libnacl (yet), but libnacl ships the required tools to do so.
 def crypto_scalarmult(sk: bytes, pk: bytes) -> bytes: # pylint: disable=invalid-name
     if len(pk) != libnacl.crypto_box_PUBLICKEYBYTES:
-        raise ValueError('Invalid public key')
+        raise ValueError("Invalid public key")
     if len(sk) != libnacl.crypto_box_SECRETKEYBYTES:
-        raise ValueError('Invalid secret key')
+        raise ValueError("Invalid secret key")
     secret = ctypes.create_string_buffer(libnacl.crypto_scalarmult_BYTES)
     if libnacl.nacl.crypto_scalarmult(secret, sk, pk):
-        raise libnacl.CryptError('Failed to compute scalar product')
+        raise libnacl.CryptError("Failed to compute scalar product")
     return secret.raw
 
 S = TypeVar("S", bound="State")
@@ -60,18 +63,18 @@ class State:
 
     def __init__(self) -> None:
         # Just the type definitions here
-        self.__curve                : Curve
-        self.__internal_ik_type     : CurveType
-        self.__external_ik_type     : CurveType
-        self.__hash_function        : HashFunction
-        self.__info_string          : str
-        self.__spk_timeout          : int
-        self.__opk_refill_threshold : int
-        self.__opk_refill_target    : int
-        self.__ik                   : KeyPair
-        self.__spk                  : SignedPreKeyPair
-        self.__old_spk              : Optional[SignedPreKeyPair]
-        self.__opks                 : List[KeyPair]
+        self.__curve: Curve
+        self.__internal_ik_type: CurveType
+        self.__external_ik_type: CurveType
+        self.__hash_function: HashFunction
+        self.__info_string: str
+        self.__spk_timeout: int
+        self.__opk_refill_threshold: int
+        self.__opk_refill_target: int
+        self.__ik: KeyPair
+        self.__spk: SignedPreKeyPair
+        self.__old_spk: Optional[SignedPreKeyPair]
+        self.__opks: List[KeyPair]
 
     @classmethod
     def __create(
@@ -202,7 +205,8 @@ class State:
 
         raise NotImplementedError("Create a subclass of X3DH and implement `_publish_bundle`.")
 
-    def _encode_public_key(self, curve: Curve, key_type: CurveType, pub: bytes) -> bytes:
+    @staticmethod
+    def _encode_public_key(curve: Curve, key_type: CurveType, pub: bytes) -> bytes:
         """
         Args:
             curve: The curve this public key belongs to.
@@ -213,11 +217,6 @@ class State:
             An encoding of the public key, possibly including information about the curve and type of key,
             though this is application defined. Note that two different public keys must never result in the
             same byte sequence, uniqueness of the public keys must be preserved.
-
-        Note:
-            This method is called from :meth:`create`, before :meth:`create` has returned the instance. Thus,
-            modifications to the object (``self``, in case of subclasses) may not have happened when this
-            method is called.
         """
 
         raise NotImplementedError("Create a subclass of X3DH and implement `_encode_public_key`.")
@@ -234,16 +233,16 @@ class State:
         """
 
         return {
-            "ik": self.__ik.serialize(),
-            "spk": self.__spk.serialize(),
-            "old_spk": None if self.__old_spk is None else self.__old_spk.serialize(),
-            "opks": [ opk.serialize() for opk in self.__opks ],
-            "curve": self.__curve.name,
-            "internal_ik_type": self.__internal_ik_type.name,
-            "external_ik_type": self.__external_ik_type.name,
-            "hash_function": self.__hash_function.name,
-            "info_string": self.__info_string,
-            "version": __version__["short"]
+            "ik"               : self.__ik.serialize(),
+            "spk"              : self.__spk.serialize(),
+            "old_spk"          : None if self.__old_spk is None else self.__old_spk.serialize(),
+            "opks"             : [ opk.serialize() for opk in self.__opks ],
+            "curve"            : self.__curve.name,
+            "internal_ik_type" : self.__internal_ik_type.name,
+            "external_ik_type" : self.__external_ik_type.name,
+            "hash_function"    : self.__hash_function.name,
+            "info_string"      : self.__info_string,
+            "version"          : __version__["short"]
         }
 
     @classmethod
@@ -261,6 +260,7 @@ class State:
     ) -> S:
         # pylint: disable=protected-access
         # pylint: disable=too-many-statements
+        # pylint: disable=too-many-locals
         """
         Args:
             serialized: A serialized instance of this class, as produced by :meth:`serialize`.
@@ -283,103 +283,116 @@ class State:
         Raises:
             InconsistentConfigurationException: If the state was serialized with a configuration that is
                 incompatible with the current configuration.
+            TypeAssertionException: if the serialized data is structured/typed incorrectly.
         """
 
         publish = False
 
-        def assert_type(obj: Dict[str, Any], key: str, value_type: Any) -> None:
-            assert key in obj
-            assert isinstance(obj[key], value_type)
-
-        # The only constant between all serialization formats is that the root element is a dictionary.
-        assert isinstance(serialized, dict)
+        # All serialization formats use a dictionary as the root element.
+        root = assert_type(dict, serialized)
 
         # If the version is included, parse it. Otherwise, assume 0.0.0 for the version.
         version = parse_version("0.0.0")
-        if "version" in serialized:
-            assert isinstance(serialized["version"], str)
-            version = parse_version(serialized["version"])
+        if "version" in root:
+            version = parse_version(assert_type(str, root, "version"))
 
         # Run migrations
         version_1_0_0 = parse_version("1.0.0")
         if version < version_1_0_0:
             # Migrate pre-stable serialization format
-            assert_type(serialized, "changed", bool)
-            assert "ik" in serialized
-            assert_type(serialized, "spk", dict)
-            assert "key" in serialized["spk"]
-            assert_type(serialized["spk"], "signature", str)
-            assert_type(serialized["spk"], "timestamp", float)
-            assert "otpks" in serialized
+            root_changed = assert_type(bool, root, "changed")
+            root_ik      = assert_type(dict, root, "ik")
+            root_spk     = assert_type(dict, root, "spk")
+            root_otpks   = assert_type(list, root, "otpks")
 
-            publish = serialized["changed"] or publish
+            publish = root_changed or publish
+
+            root_spk_key = assert_type(dict, root_spk, "key")
 
             warnings.warn(
                 "Importing pre-stable state, the compatibility of the configuration (curve, identity key"
                 " types, hash function, info string) can't be confirmed."
             )
 
-            serialized = {
-                "ik": serialized["ik"],
-                "spk": {
-                    "key": serialized["spk"]["key"],
-                    "sig": serialized["spk"]["signature"],
-                    "timestamp": int(serialized["spk"]["timestamp"])
-                },
-                "old_spk": None,
-                "opks": serialized["otpks"],
-                "curve": curve.name,
-                "internal_ik_type": internal_ik_type.name,
-                "external_ik_type": external_ik_type.name,
-                "hash_function": hash_function.name,
-                "info_string": info_string,
-                "version": "1.0.0"
+            ik_migrated: KeyPairSerialized = {
+                "priv" : assert_type(str, root_ik, "priv"),
+                "pub"  : assert_type(str, root_ik, "pub")
             }
+
+            spk_migrated: SignedPreKeyPairSerialized = {
+                "key": {
+                    "priv" : assert_type(str, root_spk_key, "priv"),
+                    "pub"  : assert_type(str, root_spk_key, "pub")
+                },
+                "sig": assert_type(str, root_spk, "signature"),
+                "timestamp": int(assert_type(float, root_spk, "timestamp"))
+            }
+
+            opks_migrated: List[KeyPairSerialized] = []
+
+            for otpk in root_otpks:
+                otpk_root = assert_type(dict, otpk)
+
+                opks_migrated.append({
+                    "priv" : assert_type(str, otpk_root, "priv"),
+                    "pub"  : assert_type(str, otpk_root, "pub")
+                })
+
+            state_migrated: StateSerialized = {
+                "ik"      : ik_migrated,
+                "spk"     : spk_migrated,
+                "old_spk" : None,
+                "opks"    : opks_migrated,
+                "curve"   : curve.name,
+                "internal_ik_type" : internal_ik_type.name,
+                "external_ik_type" : external_ik_type.name,
+                "hash_function"    : hash_function.name,
+                "info_string"      : info_string,
+                "version"          : "1.0.0"
+            }
+
+            root = state_migrated
 
             version = version_1_0_0
 
         # All migrations done, deserialize the data.
-        assert "ik"      in serialized
-        assert "spk"     in serialized
-        assert "old_spk" in serialized
-        assert_type(serialized, "opks", list)
-        assert_type(serialized, "curve", str)
-        assert_type(serialized, "internal_ik_type", str)
-        assert_type(serialized, "external_ik_type", str)
-        assert_type(serialized, "hash_function", str)
-        assert_type(serialized, "info_string", str)
+        root_old_spk = assert_in(root, "old_spk")
+        root_opks    = assert_type(list, root, "opks")
+        root_curve   = assert_type(str,  root, "curve")
+        root_internal_ik_type = assert_type(str, root, "internal_ik_type")
+        root_external_ik_type = assert_type(str, root, "external_ik_type")
+        root_hash_function    = assert_type(str, root, "hash_function")
+        root_info_string      = assert_type(str, root, "info_string")
 
-        if serialized["curve"] != curve.name:
+        if root_curve != curve.name:
             raise InconsistentConfigurationException(
                 "The serialized state uses keys on {}, the state can't be loaded/converted for {}.".format(
-                    serialized["curve"],
+                    root_curve,
                     curve.name
                 )
             )
 
-        if serialized["internal_ik_type"] != internal_ik_type.name:
+        if root_internal_ik_type != internal_ik_type.name:
             raise InconsistentConfigurationException(
                 "The serialized state uses {} key pairs internally for the identity key, the state can't be"
-                " loaded/converted to use {} key pairs instead.".format(
-                    serialized["internal_ik_type"],
-                    internal_ik_type.name
-                )
+                " loaded/converted to use {} key pairs instead."
+                .format(root_internal_ik_type, internal_ik_type.name)
             )
 
-        if serialized["external_ik_type"] != external_ik_type.name:
+        if root_external_ik_type != external_ik_type.name:
             warnings.warn(
                 "The external identity key type has changed. This means that all bundles have to be"
                 " republished and key agreements initiated prior to this change are now invalid."
             )
             publish = True
 
-        if serialized["hash_function"] != hash_function.name:
+        if root_hash_function != hash_function.name:
             warnings.warn(
                 "The hash function has changed. This means that key agreements initiated prior to this change"
                 " are now invalid."
             )
 
-        if serialized["info_string"] != info_string:
+        if root_info_string != info_string:
             warnings.warn(
                 "The info string has changed. This means that key agreements initiated prior to this change"
                 " are now invalid."
@@ -396,16 +409,16 @@ class State:
             opk_refill_target
         )
 
-        self.__ik      = KeyPair.deserialize(serialized["ik"])
-        self.__spk     = SignedPreKeyPair.deserialize(serialized["spk"])
+        self.__ik      = KeyPair.deserialize(assert_in(root, "ik"))
+        self.__spk     = SignedPreKeyPair.deserialize(assert_in(root, "spk"))
         self.__old_spk = None
-        self.__opks    = [ KeyPair.deserialize(opk) for opk in serialized["opks"] ]
+        self.__opks    = [ KeyPair.deserialize(opk) for opk in root_opks ]
 
-        if serialized["old_spk"] is not None:
-            self.__old_spk = SignedPreKeyPair.deserialize(serialized["old_spk"])
+        if root_old_spk is not None:
+            self.__old_spk = SignedPreKeyPair.deserialize(root_old_spk)
 
         publish = self.__refill_opks() or publish
-        publish = self.__rotate_spk() or publish
+        publish = self.__rotate_spk()  or publish
         if publish:
             await self.__publish_bundle()
 
@@ -606,9 +619,10 @@ class State:
         self,
         bundle: Bundle,
         ad_appendix: bytes = b"",
-        require_opk: bool = True
+        require_opk: bool  = True
     ) -> SharedSecretActive:
         # pylint: disable=invalid-name
+        # pylint: disable=too-many-locals
         """
         Perform an X3DH key agreement, actively.
 
@@ -689,6 +703,7 @@ class State:
         require_opk: bool = True
     ) -> SharedSecretPassive:
         # pylint: disable=invalid-name
+        # pylint: disable=too-many-locals
         """
         Perform an X3DH key agreement, passively.
 
