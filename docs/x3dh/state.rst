@@ -1,13 +1,11 @@
 Module: state
 =============
 
-.. autoclass:: x3dh.state.State
+.. automodule:: x3dh.state
     :members:
     :special-members:
+    :private-members:
     :undoc-members:
     :member-order: bysource
-    :exclude-members: __dict__, __weakref__, __module__, __annotations__, __init__
+    :exclude-members: __dict__, __weakref__, __module__, __annotations__, __slots__, __repr__, __new__, __getnewargs__, __init__
     :show-inheritance:
-
-    .. automethod:: _publish_bundle
-    .. automethod:: _encode_public_key

@@ -1,12 +1,16 @@
-import ctypes
 import time
 import secrets
 from typing import TypeVar, Type, Optional, List, Any
 import warnings
 
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.ed448 import Ed448PrivateKey, Ed448PublicKey
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.x448 import X448PrivateKey, X448PublicKey
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 import libnacl
 from packaging.version import parse as parse_version
 from xeddsa import XEdDSA25519
@@ -42,17 +46,6 @@ from .types import (
 )
 
 from .version import __version__
-
-# This is not exported by libnacl (yet), but libnacl ships the required tools to do so.
-def crypto_scalarmult(sk: bytes, pk: bytes) -> bytes: # pylint: disable=invalid-name
-    if len(pk) != libnacl.crypto_box_PUBLICKEYBYTES:
-        raise ValueError("Invalid public key")
-    if len(sk) != libnacl.crypto_box_SECRETKEYBYTES:
-        raise ValueError("Invalid secret key")
-    secret = ctypes.create_string_buffer(libnacl.crypto_scalarmult_BYTES)
-    if libnacl.nacl.crypto_scalarmult(secret, sk, pk):
-        raise libnacl.CryptError("Failed to compute scalar product")
-    return secret.raw
 
 S = TypeVar("S", bound="State")
 class State:
@@ -97,11 +90,11 @@ class State:
 
         try:
             info_string.encode("ASCII", errors="strict")
-        except UnicodeEncodeError:
+        except UnicodeEncodeError as e:
             raise ValueError(
                 "Invalid value passed for the `info_string` parameter."
                 " The string may only contain ASCII-encodable chars."
-            )
+            ) from e
 
         if spk_timeout < 1:
             raise ValueError(
@@ -115,6 +108,9 @@ class State:
                 " `opk_refill_threshold` must be greater than or equal to '1' and lower than or equal to"
                 " `opk_refill_target`."
             )
+
+        if curve is Curve.Curve448:
+            raise NotImplementedError("Sorry, Curve448 is not fully supported yet.")
 
         self = cls()
         self.__curve                = curve
@@ -447,10 +443,14 @@ class State:
                 sig = XEdDSA25519(mont_priv=self.__ik.priv).sign(pub_encoded)
 
             if self.__internal_ik_type is CurveType.Ed:
-                sig = libnacl.crypto_sign_detached(pub_encoded, self.__ik.priv)
+                sig = Ed25519PrivateKey.from_private_bytes(self.__ik.priv).sign(pub_encoded)
 
         if self.__curve is Curve.Curve448:
-            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+            if self.__internal_ik_type is CurveType.Mont:
+                raise NotImplementedError("Sorry, Curve448 is not fully supported yet.")
+
+            if self.__internal_ik_type is CurveType.Ed:
+                sig = Ed448PrivateKey.from_private_bytes(self.__ik.priv).sign(pub_encoded)
 
         return SignedPreKeyPair(key=key, sig=sig, timestamp=int(time.time()))
 
@@ -512,19 +512,73 @@ class State:
 
     def __generate_mont_key_pair(self) -> KeyPair:
         if self.__curve is Curve.Curve25519:
-            pub, priv = libnacl.crypto_box_keypair()
-            return KeyPair(priv=priv, pub=pub)
+            curve25519_private_key = X25519PrivateKey.generate()
+            curve25519_public_key  = curve25519_private_key.public_key()
+
+            curve25519_priv = curve25519_private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+
+            curve25519_pub = curve25519_public_key.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw
+            )
+
+            return KeyPair(priv=curve25519_priv, pub=curve25519_pub)
 
         if self.__curve is Curve.Curve448:
-            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+            curve448_private_key = X448PrivateKey.generate()
+            curve448_public_key  = curve448_private_key.public_key()
+
+            curve448_priv = curve448_private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+
+            curve448_pub = curve448_public_key.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw
+            )
+
+            return KeyPair(priv=curve448_priv, pub=curve448_pub)
 
     def __generate_ed_key_pair(self) -> KeyPair:
         if self.__curve is Curve.Curve25519:
-            pub, priv = libnacl.crypto_sign_keypair()
-            return KeyPair(priv=priv, pub=pub)
+            ed25519_private_key = Ed25519PrivateKey.generate()
+            ed25519_public_key  = ed25519_private_key.public_key()
+
+            ed25519_priv = ed25519_private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+
+            ed25519_pub = ed25519_public_key.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw
+            )
+
+            return KeyPair(priv=ed25519_priv, pub=ed25519_pub)
 
         if self.__curve is Curve.Curve448:
-            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+            ed448_private_key = Ed448PrivateKey.generate()
+            ed448_public_key  = ed448_private_key.public_key()
+
+            ed448_priv = ed448_private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+
+            ed448_pub = ed448_public_key.public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw
+            )
+
+            return KeyPair(priv=ed448_priv, pub=ed448_pub)
 
     @property
     def __ik_priv_mont(self) -> bytes:
@@ -533,10 +587,12 @@ class State:
 
         if self.__internal_ik_type is CurveType.Ed:
             if self.__curve is Curve.Curve25519:
-                return libnacl.crypto_sign_ed25519_sk_to_curve25519(self.__ik.priv)
+                return libnacl.crypto_sign_ed25519_sk_to_curve25519(
+                    libnacl.crypto_sign_seed_keypair(self.__ik.priv)[1]
+                )
 
             if self.__curve is Curve.Curve448:
-                raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+                raise NotImplementedError("Sorry, Curve448 is not fully supported yet.")
 
     @property
     def __ik_pub_mont(self) -> bytes:
@@ -566,7 +622,7 @@ class State:
                     return XEdDSA25519.mont_pub_to_ed_pub(pub)
 
                 if self.__curve is Curve.Curve448:
-                    raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+                    raise NotImplementedError("Sorry, Curve448 is not fully supported yet.")
 
         if from_type is CurveType.Ed:
             if to_type is CurveType.Mont:
@@ -574,17 +630,17 @@ class State:
                     return libnacl.crypto_sign_ed25519_pk_to_curve25519(pub)
 
                 if self.__curve is Curve.Curve448:
-                    raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+                    raise NotImplementedError("Sorry, Curve448 is not fully supported yet.")
 
             if to_type is CurveType.Ed:
                 return pub
 
     def __diffie_hellman(self, priv: bytes, pub: bytes) -> bytes:
         if self.__curve is Curve.Curve25519:
-            return crypto_scalarmult(priv, pub)
+            return X25519PrivateKey.from_private_bytes(priv).exchange(X25519PublicKey.from_public_bytes(pub))
 
         if self.__curve is Curve.Curve448:
-            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+            return X448PrivateKey.from_private_bytes(priv).exchange(X448PublicKey.from_public_bytes(pub))
 
     def __key_derivation(self, secret_key_material: bytes) -> bytes:
         hash_function: hashes.HashAlgorithm
@@ -647,20 +703,20 @@ class State:
 
         spk_encoded = self._encode_public_key(self.__curve, CurveType.Mont, bundle.spk)
 
-        if self.__curve is Curve.Curve25519:
-            try:
-                libnacl.crypto_sign_verify_detached(
+        try:
+            if self.__curve is Curve.Curve25519:
+                Ed25519PublicKey.from_public_bytes(self.__ik_pub_external_to_ed(bundle.ik)).verify(
                     bundle.spk_sig,
-                    spk_encoded,
-                    self.__ik_pub_external_to_ed(bundle.ik)
-                )
-            except ValueError:
-                raise KeyExchangeException(
-                    "The signature of this bundle's signed pre key could not be verified."
+                    spk_encoded
                 )
 
-        if self.__curve is Curve.Curve448:
-            raise NotImplementedError("Sorry, Curve448 is not supported yet.")
+            if self.__curve is Curve.Curve448:
+                Ed448PublicKey.from_public_bytes(self.__ik_pub_external_to_ed(bundle.ik)).verify(
+                    bundle.spk_sig,
+                    spk_encoded
+                )
+        except InvalidSignature as e:
+            raise KeyExchangeException("The signature of the signed pre key could not be verified.") from e
 
         DH  = self.__diffie_hellman
         KDF = self.__key_derivation

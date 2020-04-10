@@ -114,7 +114,7 @@ def generate_settings(
                             continue
 
                         if curve is x3dh.Curve.Curve448:
-                            # Curve448 is currently not supported.
+                            # Curve448 is currently not fully supported.
                             continue
 
                     yield state_settings
@@ -211,7 +211,7 @@ async def test_configuration() -> None:
 
 
         if curve is x3dh.Curve.Curve448:
-            # Curve448 is currently not supported.
+            # Curve448 is currently not fully supported.
             await create_state_expect(state_settings, NotImplementedError, "Curve448")
             continue
 

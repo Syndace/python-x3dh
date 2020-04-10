@@ -10,6 +10,7 @@
 # directories to sys.path here. If the directory is relative to the documentation root,
 # use os.path.abspath to make it absolute, like shown here.
 import os
+import re
 import sys
 
 this_file_path = os.path.dirname(os.path.abspath(__file__))
@@ -58,3 +59,20 @@ html_theme = "sphinx_rtd_theme"
 # this directory. They are copied after the builtin static files, so a file named
 # "default.css" will overwrite the builtin "default.css".
 html_static_path = [ "_static" ]
+
+# -- Autodoc Member Skipping -------------------------------------------------------------
+
+private_name_regex = re.compile(r"^_\w+__")
+def autodoc_skip_member_handler(app, what, name, obj, skip, options):
+    """
+    A very simple handler for the autodoc-skip-member event that skips everything
+    "private", aka starting with double underscores. Everything else is left untouched.
+    """
+
+    if private_name_regex.match(name):
+        return True
+
+    return None
+
+def setup(app):
+    app.connect("autodoc-skip-member", autodoc_skip_member_handler)

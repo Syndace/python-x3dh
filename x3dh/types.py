@@ -1,6 +1,6 @@
 from base64 import b64encode, b64decode
 import binascii
-from enum import Enum
+import enum
 import json
 from typing import List, NamedTuple, Optional, Dict, Any, TypeVar, Type, Union, Callable
 
@@ -56,6 +56,28 @@ def assert_type(expected_type: Type[A], obj: Any, key: Optional[str] = None) -> 
 
     return obj
 
+def assert_type_optional(expected_type: Type[A], obj: Any, key: Optional[str] = None) -> Optional[A]:
+    """
+    Args:
+        expected_type: The excpected type of `obj`, if `obj` is not None.
+        obj: The object to type check.
+        key: If given, the object is treated as a dictionary and `obj[key]` is type checked instead of `obj`.
+
+    Returns:
+        The type checked and correctly typed object.
+
+    Raises:
+        TypeAssertionException: if the object is not of the expected type.
+    """
+
+    if key is not None:
+        obj = assert_in(assert_type(dict, obj), key)
+
+    if obj is None:
+        return None
+
+    return assert_type(expected_type, obj)
+
 def assert_decode_json(expected_type: Type[A], json_encoded: str) -> A:
     """
     Asserts that `json_encoded` contains valid JSON, deserializes the JSON and checks that the resulting
@@ -109,6 +131,9 @@ def maybe_or(obj: Optional[A], func: Callable[[A], B], exc: BaseException) -> B:
         return func(obj)
 
     raise exc
+
+def default(obj: Optional[A], value: A) -> A:
+    return value if obj is None else obj
 
 ################
 # Type Aliases #
@@ -224,15 +249,18 @@ class SignedPreKeyPair(NamedTuple):
 # Enumerations #
 ################
 
-class Curve(Enum):
+@enum.unique
+class Curve(enum.Enum):
     Curve448:   str = "Curve448"
     Curve25519: str = "Curve25519"
 
-class CurveType(Enum):
+@enum.unique
+class CurveType(enum.Enum):
     Mont: str = "Mont"
     Ed:   str = "Ed"
 
-class HashFunction(Enum):
+@enum.unique
+class HashFunction(enum.Enum):
     SHA_256: str = "SHA-256"
     SHA_512: str = "SHA-512"
 
