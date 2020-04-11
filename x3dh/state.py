@@ -1,3 +1,4 @@
+from abc import ABCMeta, abstractmethod
 import time
 import secrets
 from typing import TypeVar, Type, Optional, List, Any
@@ -48,7 +49,7 @@ from .types import (
 from .version import __version__
 
 S = TypeVar("S", bound="State")
-class State:
+class State(metaclass=ABCMeta):
     """
     This class is the core of this X3DH implementation. It manages the own :class:`~x3dh.types.Bundle` and
     offers methods to perform key agreements with other parties.
@@ -181,6 +182,7 @@ class State:
     # abstract methods #
     ####################
 
+    @abstractmethod
     async def _publish_bundle(self, bundle: Bundle) -> Any:
         """
         Args:
@@ -202,6 +204,7 @@ class State:
         raise NotImplementedError("Create a subclass of X3DH and implement `_publish_bundle`.")
 
     @staticmethod
+    @abstractmethod
     def _encode_public_key(curve: Curve, key_type: CurveType, pub: bytes) -> bytes:
         """
         Args:
