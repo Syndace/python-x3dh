@@ -147,8 +147,8 @@ class State(metaclass=ABCMeta):
             info_string: An ASCII string identifying the application.
             spk_timeout: Rotate the signed pre key after this amount of time in days.
             opk_refill_threshold: Threshold for refilling the one-time pre keys.
-            opk_refill_target: When less then `opk_refill_threshold` one-time pre keys are available, generate
-                new ones until there are `opk_refill_target` opks again.
+            opk_refill_target: When less then ``opk_refill_threshold`` one-time pre keys are available,
+                generate new ones until there are ``opk_refill_target`` opks again.
 
         For details regarding the internal and external identity key types, refer to
         :ref:`the documentation <ik-types>`.
@@ -270,8 +270,8 @@ class State(metaclass=ABCMeta):
             info_string: An ASCII string identifying the application.
             spk_timeout: Rotate the signed pre key after this amount of time in days.
             opk_refill_threshold: Threshold for refilling the one-time pre keys.
-            opk_refill_target: When less then `opk_refill_threshold` one-time pre keys are available, generate
-                new ones until there are `opk_refill_target` opks again.
+            opk_refill_target: When less then ``opk_refill_threshold`` one-time pre keys are available,
+                generate new ones until there are ``opk_refill_target`` opks again.
 
         For details regarding the internal and external identity key types, refer to
         :ref:`the documentation <ik-types>`.
@@ -689,7 +689,7 @@ class State(metaclass=ABCMeta):
             bundle: The bundle of the passive party.
             ad_appendix: Additional information to append to the associated data, like usernames, certificates
                 or other identifying information.
-            require_opk: If set to `True`, the key agreement is aborted if `bundle` does not contain a
+            require_opk: If set to ``True``, the key agreement is aborted if ``bundle`` does not contain a
                 one-time pre key.
 
         Returns:
@@ -770,7 +770,7 @@ class State(metaclass=ABCMeta):
             header: The header received from the active party.
             ad_appendix: Additional information to append to the associated data, like usernames, certificates
                 or other identifying information.
-            require_opk: If set to `True`, the key agreement is aborted if the active party did not use a
+            require_opk: If set to ``True``, the key agreement is aborted if the active party did not use a
                 one-time pre key.
 
         Returns:
