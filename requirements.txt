@@ -1,4 +1,4 @@
 XEdDSA>=1.0.0,<2
-cryptography>=2.6.1,<3
+cryptography>=3.3.2,<37
 libnacl>=1.6.1,<=2
-packaging>=19,<21
+packaging>=20.9,<22
