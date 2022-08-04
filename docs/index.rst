@@ -2,6 +2,7 @@ python-x3dh - A Python implementation of the Extended Triple Diffie-Hellman key 
 ===================================================================================================
 
 .. toctree::
-    Installation <installation>
-    Getting Started <getting_started>
-    Package: x3dh <x3dh/package>
+    installation
+    getting_started
+    serialization_and_migration
+    API Documentation <x3dh/package>

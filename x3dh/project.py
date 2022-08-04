@@ -1,3 +1,5 @@
+__all__ = [ "project" ]  # pylint: disable=unused-variable
+
 project = {
     "name"         : "X3DH",
     "description"  : "A Python implementation of the Extended Triple Diffie-Hellman key agreement protocol.",

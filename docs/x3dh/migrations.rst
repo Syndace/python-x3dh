@@ -1,7 +1,7 @@
-Module: state
-=============
+Module: migrations
+==================
 
-.. automodule:: x3dh.state
+.. automodule:: x3dh.migrations
     :members:
     :special-members:
     :private-members:

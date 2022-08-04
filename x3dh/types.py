@@ -1,159 +1,43 @@
-from base64 import b64encode, b64decode
-import binascii
+# This import from future (theoretically) enables sphinx_autodoc_typehints to handle type aliases better
+from __future__ import annotations  # pylint: disable=unused-variable
+
 import enum
-import json
-from typing import List, NamedTuple, Optional, Dict, Any, TypeVar, Type, Union, Callable
+from typing import List, Mapping, NamedTuple, Optional, Set, Union
 
-# All TypeVars here to avoid name clashes
-A = TypeVar("A")
-B = TypeVar("B")
-K = TypeVar("K", bound="KeyPair")
-P = TypeVar("P", bound="SignedPreKeyPair")
+from cryptography.hazmat.primitives import hashes
 
-#####################
-# Assertion Toolkit #
-#####################
 
-class TypeAssertionException(TypeError):
-    pass
+__all__ = [  # pylint: disable=unused-variable
+    "Bundle",
+    "IdentityKeyFormat",
+    "HashFunction",
+    "Header",
+    "JSONObject",
+    "SecretType"
+]
 
-def assert_in(obj: Dict[Any, Any], key: str) -> Any:
-    """
-    Asserts that ``obj`` contains an element ``key`` and returns the corresponding element.
-
-    Raises:
-        TypeAssertionException: if the object does not contain the expected key.
-    """
-
-    if key not in obj:
-        raise TypeAssertionException("Dictionary `{}` does not contain key `{}`.".format(obj, key))
-
-    return obj[key]
-
-def assert_type(expected_type: Type[A], obj: Any, key: Optional[str] = None) -> A:
-    """
-    Args:
-        expected_type: The excpected type of ``obj``.
-        obj: The object to type check.
-        key: If given, the object is treated as a dictionary and ``obj[key]`` is type checked instead of
-            ``obj``.
-
-    Returns:
-        The type checked and correctly typed object.
-
-    Raises:
-        TypeAssertionException: if the object is not of the expected type.
-    """
-
-    if key is not None:
-        obj = assert_in(assert_type(dict, obj), key)
-
-    if not isinstance(obj, expected_type):
-        raise TypeAssertionException("Object `{}` is not of type `{}` but `{}`.".format(
-            obj,
-            expected_type,
-            type(obj)
-        ))
-
-    return obj
-
-def assert_type_optional(expected_type: Type[A], obj: Any, key: Optional[str] = None) -> Optional[A]:
-    """
-    Args:
-        expected_type: The excpected type of ``obj``, if ``obj`` is not None.
-        obj: The object to type check.
-        key: If given, the object is treated as a dictionary and ``obj[key]`` is type checked instead of
-            ``obj``.
-
-    Returns:
-        The type checked and correctly typed object.
-
-    Raises:
-        TypeAssertionException: if the object is not of the expected type.
-    """
-
-    if key is not None:
-        obj = assert_in(assert_type(dict, obj), key)
-
-    if obj is None:
-        return None
-
-    return assert_type(expected_type, obj)
-
-def assert_decode_json(expected_type: Type[A], json_encoded: str) -> A:
-    """
-    Asserts that ``json_encoded`` contains valid JSON, deserializes the JSON and checks that the resulting
-    object has the expected type.
-
-    Raises:
-        TypeAssertionException: if the string does not contain valid JSON or the deserialized JSON is not of
-            the expected type.
-    """
-
-    try:
-        return assert_type(expected_type, json.loads(json_encoded))
-    except json.JSONDecodeError as e:
-        raise TypeAssertionException("The string `{}` does not contain valid JSON.".format(
-            json_encoded
-        )) from e
-
-def assert_decode_base64(base64_encoded: str) -> bytes:
-    """
-    Asserts that ``base64_encoded`` is ASCII-encodable and contains valid base64 encoded data, deserializes
-    and returns it.
-
-    Raises:
-        TypeAssertionException: if the string is not ASCII-encodable or does not contain valid base64 encoded
-            data.
-    """
-
-    try:
-        return b64decode(base64_encoded.encode("ASCII", errors="strict"), validate=True)
-    except UnicodeEncodeError as e:
-        raise TypeAssertionException("The string `{}` is not ASCII-encodable.".format(
-            base64_encoded
-        )) from e
-    except binascii.Error as e:
-        raise TypeAssertionException("The string `{}` does not contain valid base64 encoded data.".format(
-            base64_encoded
-        )) from e
-
-###########
-# Helpers #
-###########
-
-def maybe(obj: Optional[A], func: Callable[[A], B]) -> Optional[B]:
-    if obj is not None:
-        return func(obj)
-
-    return None
-
-def maybe_or(obj: Optional[A], func: Callable[[A], B], exc: BaseException) -> B:
-    if obj is not None:
-        return func(obj)
-
-    raise exc
-
-def default(obj: Optional[A], value: A) -> A:
-    return value if obj is None else obj
 
 ################
 # Type Aliases #
 ################
 
-# This type definition is far from optimal, but mypy doesn't support recurisve types yet (and I doubt it ever
-# will).
-JSONType = Union[None, bool, int, str, List[Any], Dict[str, Any]]
+# # Thanks @vanburgerberg - https://github.com/python/typing/issues/182
+# if TYPE_CHECKING:
+#     class JSONArray(list[JSONType], Protocol):  # type: ignore
+#         __class__: Type[list[JSONType]]  # type: ignore
+#
+#     class JSONObject(dict[str, JSONType], Protocol):  # type: ignore
+#         __class__: Type[dict[str, JSONType]]  # type: ignore
+#
+#     JSONType = Union[None, float, int, str, bool, JSONArray, JSONObject]
 
-KeyPairSerialized = Dict[str, str]
-SignedPreKeyPairSerialized = Dict[str, Union[KeyPairSerialized, str, int]]
-StateSerialized = Dict[str, Union[
-    None,
-    str,
-    KeyPairSerialized,
-    SignedPreKeyPairSerialized,
-    List[KeyPairSerialized]
-]]
+# Sadly @vanburgerberg's solution doesn't seem to like Dict[str, bool], thus for now an incomplete JSON
+# type with finite levels of depth.
+Primitives = Union[None, float, int, str, bool]
+JSONType1 = Union[Primitives, List[Primitives], Mapping[str, Primitives]]
+JSONType = Union[Primitives, List[JSONType1], Mapping[str, JSONType1]]
+JSONObject = Mapping[str, JSONType]
+
 
 ############################
 # Structures (NamedTuples) #
@@ -167,111 +51,75 @@ class Bundle(NamedTuple):
     bundle to perform a key agreement.
     """
 
-    ik: bytes
-    spk: bytes
-    spk_sig: bytes
-    opks: List[bytes]
+    identity_key: bytes
+    signed_pre_key: bytes
+    signed_pre_key_sig: bytes
+    pre_keys: Set[bytes]
 
-Bundle.ik.__doc__ = (
-    "The public part of the identity key. Length and encoding depend on the curve (25519 vs. 448) and the"
-    " type of key (Curve vs. Ed) used here."
-)
-
-Bundle.spk.__doc__ = (
-    "The public part of the signed pre key. Length and encoding depend on the curve."
-)
-
-Bundle.spk_sig.__doc__ = (
-    "The detached signature of the signed pre key created with the identity key. Length and encoding depend"
-    " on the curve."
-)
-
-Bundle.opks.__doc__ = (
-    "A list of public keys with one entry for each one-time pre key. Note that this list may be empty. Length"
-    " and encoding depend on the curve."
-)
 
 class Header(NamedTuple):
-    ik:  bytes
-    ek:  bytes
-    spk: bytes
-    opk: Optional[bytes]
+    """
+    The header generated by the active party as part of the key agreement, and consumed by the passive party
+    to derive the same shared secret.
+    """
 
-class SharedSecretActive(NamedTuple):
-    shared_secret: bytes
-    associated_data: bytes
-    header: Header
+    identity_key: bytes
+    ephemeral_key: bytes
+    signed_pre_key: bytes
+    pre_key: Optional[bytes]
 
-class SharedSecretPassive(NamedTuple):
-    shared_secret: bytes
-    associated_data: bytes
-
-class KeyPair(NamedTuple):
-    priv: bytes
-    pub: bytes
-
-    def serialize(self) -> KeyPairSerialized:
-        return {
-            "priv" : b64encode(self.priv).decode("ASCII"),
-            "pub"  : b64encode(self.pub).decode("ASCII")
-        }
-
-    @classmethod
-    def deserialize(cls: Type[K], serialized: JSONType) -> K:
-        root = assert_type(dict, serialized)
-
-        return cls(
-            priv = assert_decode_base64(assert_type(str, root, "priv")),
-            pub  = assert_decode_base64(assert_type(str, root, "pub"))
-        )
-
-class SignedPreKeyPair(NamedTuple):
-    key: KeyPair
-    sig: bytes
-    timestamp: int
-
-    def serialize(self) -> SignedPreKeyPairSerialized:
-        return {
-            "key": self.key.serialize(),
-            "sig": b64encode(self.sig).decode("ASCII"),
-            "timestamp": self.timestamp
-        }
-
-    @classmethod
-    def deserialize(cls: Type[P], serialized: JSONType) -> P:
-        root = assert_type(dict, serialized)
-
-        return cls(
-            key = KeyPair.deserialize(assert_in(root, "key")),
-            sig = assert_decode_base64(assert_type(str, root, "sig")),
-            timestamp = assert_type(int, root, "timestamp")
-        )
 
 ################
 # Enumerations #
 ################
 
 @enum.unique
-class Curve(enum.Enum):
-    Curve448:   str = "Curve448"
-    Curve25519: str = "Curve25519"
+class IdentityKeyFormat(enum.Enum):
+    """
+    The two supported public key formats for the identity key:
 
-@enum.unique
-class CurveType(enum.Enum):
-    Mont: str = "Mont"
-    Ed:   str = "Ed"
+    * Curve25519 public keys: 32 bytes, the little-endian encoding of the u coordinate as per `RFC 7748,
+      section 5 "The X25519 and X448 Functions" <https://www.rfc-editor.org/rfc/rfc7748.html#section-5>`_.
+    * Ed25519 public keys: 32 bytes, the little-endian encoding of the y coordinate with the sign bit of the x
+      coordinate stored in the most significant bit as per `RFC 8032, section 3.2 "Keys"
+      <https://www.rfc-editor.org/rfc/rfc8032.html#section-3.2>`_.
+    """
+
+    CURVE_25519: str = "CURVE_25519"
+    ED_25519: str = "ED_25519"
+
 
 @enum.unique
 class HashFunction(enum.Enum):
-    SHA_256: str = "SHA-256"
-    SHA_512: str = "SHA-512"
+    """
+    Enumeration of the hash functions supported for the key derivation step of X3DH.
+    """
 
-##############
-# Exceptions #
-##############
+    SHA_256: str = "SHA_256"
+    SHA_512: str = "SHA_512"
 
-class InconsistentConfigurationException(Exception):
-    pass
+    @property
+    def as_cryptography(self) -> hashes.HashAlgorithm:
+        """
+        Returns:
+            The implementation of the hash function as a cryptography
+            :class:`~cryptography.hazmat.primitives.hashes.HashAlgorithm` object.
+        """
 
-class KeyExchangeException(Exception):
-    pass
+        if self is HashFunction.SHA_256:
+            return hashes.SHA256()
+        if self is HashFunction.SHA_512:
+            return hashes.SHA512()
+
+        # The type of self evaluates to "Never" here, thus is allowed to be returned and satisfies pylint.
+        return self
+
+
+@enum.unique
+class SecretType(enum.Enum):
+    """
+    The two types of secrets that an :class:`IdentityKeyPair` can use internally: a seed or a private key.
+    """
+
+    SEED: str = "SEED"
+    PRIV: str = "PRIV"

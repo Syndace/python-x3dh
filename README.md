@@ -1,6 +1,6 @@
 [![PyPI](https://img.shields.io/pypi/v/X3DH.svg)](https://pypi.org/project/X3DH/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/X3DH.svg)](https://pypi.org/project/X3DH/)
-[![Build Status](https://travis-ci.org/Syndace/python-x3dh.svg?branch=master)](https://travis-ci.org/Syndace/python-x3dh)
+[![Build Status](https://travis-ci.org/Syndace/python-x3dh.svg?branch=stable)](https://travis-ci.org/Syndace/python-x3dh)
 [![Documentation Status](https://readthedocs.org/projects/python-x3dh/badge/?version=latest)](https://python-x3dh.readthedocs.io/en/latest/?badge=latest)
 
 # python-x3dh #
@@ -9,14 +9,30 @@ A Python implementation of the [Extended Triple Diffie-Hellman key agreement pro
 
 ## Installation ##
 
-python-x3dh depends on two system libraries, [libxeddsa](https://github.com/Syndace/libxeddsa) and [libsodium](https://download.libsodium.org/doc/).
+python-x3dh depends on two system libraries, [libxeddsa](https://github.com/Syndace/libxeddsa)>=2,<3 and [libsodium](https://download.libsodium.org/doc/).
 
-Install the latest release using pip (`pip install X3DH`) or manually from source by running `pip install .` (preferred) or `python setup.py install` in the cloned repository. The installation requires libsodium and the Python development headers to be installed. If a locally installed version of libxeddsa is available, [python-xeddsa](https://github.com/Syndace/python-xeddsa) (a dependency of python-x3dh) tries to use that. Otherwise it uses prebuilt binaries of the library, which are available for Linux, MacOS and Windows on the amd64 architecture. Set the `LIBXEDDSA_FORCE_LOCAL` environment variable to forbid the usage of prebuilt binaries.
+Install the latest release using pip (`pip install X3DH`) or manually from source by running `pip install .` (preferred) or `python setup.py install` in the cloned repository. The installation requires libsodium and the Python development headers to be installed. If a locally installed version of libxeddsa is available, [python-xeddsa](https://github.com/Syndace/python-xeddsa) (a dependency of python-x3dh) tries to use that. Otherwise it uses prebuilt binaries of the library, which are available for Linux, MacOS and Windows on the amd64 architecture, and potentially for MacOS arm64 too. Set the `LIBXEDDSA_FORCE_LOCAL` environment variable to forbid the usage of prebuilt binaries.
 
 ## Differences to the Specification ##
 
-In the X3DH specification, the identity key is a Curve25519/Curve448 key and [XEdDSA](https://www.signal.org/docs/specifications/xeddsa/) is used to create signatures with it. This library is a little more flexible regarding the identity key. First, you can choose whether to use a Curve25519/Curve448 or an Ed25519/Ed448 key pair for the identity key internally. Second, you can choose whether the public part of the identity key in the bundle is transferred as Curve25519/Curve448 or Ed25519/Ed448. Note that Curve448/Ed448 is currently not supported due to the lack of implementations of the required key conversion algorithms.
+In the X3DH specification, the identity key is a Curve25519/Curve448 key and [XEdDSA](https://www.signal.org/docs/specifications/xeddsa/) is used to create signatures with it. This library does not support Curve448, however, it supports Ed25519 in addition to Curve25519. You can choose whether the public part of the identity key in the bundle is transferred as Curve25519 or Ed25519. Refer to [the documentation](https://python-x3dh.readthedocs.io/) for details.
 
-## A Note on Dependencies ##
+## Testing, Type Checks and Linting ##
 
-python-x3dh currently depends on both [cryptography](https://cryptography.io/) and [libnacl](https://libnacl.readthedocs.io/), which are both libraries that offer cryptographic primitives and overlap quite a bit. The reason is that cryptography doesn't support converting Ed25519/Ed448 key pairs to Curve25519/Curve448, while libnacl at least ships the required conversion algorithms for Curve25519/Ed25519 but lacks other features (namely HKDF) and is generally less active/maintained. The (probably unachievable) long-term goal is to drop the dependency on libnacl.
+python-x3dh uses [pytest](https://docs.pytest.org/en/latest/) as its testing framework, [mypy](http://mypy-lang.org/) for static type checks and both [pylint](https://pylint.pycqa.org/en/latest/) and [Flake8](https://flake8.pycqa.org/en/latest/) for linting. All tests/checks can be run locally with the following commands:
+
+```sh
+$ pip install --upgrade pytest mypy pylint flake8
+$ mypy --strict x3dh/ setup.py tests/
+$ pylint x3dh/ setup.py tests/
+$ flake8 x3dh/ setup.py tests/
+$ pytest
+```
+
+## Documentation ##
+
+View the documentation on [readthedocs.io](https://python-x3dh.readthedocs.io/) or build it locally, which requires the Python packages listed in `docs/requirements.txt`. With all dependencies installed, run `make html` in the `docs/` directory. You can find the generated documentation in `docs/_build/html/`.
+
+## Travis CI ##
+
+The project used to be built using Travis CI, which was amazing. Sadly, Travis fully closed their open-source support. I have yet to migrate somewhere else, until then the project will not be automatically tested.

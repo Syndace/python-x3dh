@@ -1,7 +1,7 @@
-Module: state
-=============
+Module: base_state
+==================
 
-.. automodule:: x3dh.state
+.. automodule:: x3dh.base_state
     :members:
     :special-members:
     :private-members:

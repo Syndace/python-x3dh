@@ -1,7 +1,7 @@
-Module: types
-=============
+Module: models
+==============
 
-.. automodule:: x3dh.types
+.. automodule:: x3dh.models
     :members:
     :undoc-members:
     :member-order: bysource

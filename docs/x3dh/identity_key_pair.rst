@@ -1,7 +1,7 @@
-Module: state
-=============
+Module: identity_key_pair
+=========================
 
-.. automodule:: x3dh.state
+.. automodule:: x3dh.identity_key_pair
     :members:
     :special-members:
     :private-members:
