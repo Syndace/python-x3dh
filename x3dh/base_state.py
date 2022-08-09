@@ -152,7 +152,7 @@ class BaseState(ABC):
         """
         Args:
             model: The pydantic model holding the internal state of a :class:`BaseState`, as produced by
-                :meth:`model`.
+                :attr:`model`.
             identity_key_format: The format in which the identity public key is included in bundles/headers.
             hash_function: A 256 or 512-bit hash function.
             info: A (byte) string identifying the application.
@@ -161,8 +161,8 @@ class BaseState(ABC):
             A configured instance of :class:`BaseState`, with internal state restored from the model.
 
         Warning:
-            Migrations are not provided via the :meth:`model`/:meth:`from_model` API. Use
-            :meth:`json`/:meth:`from_json` instead. Refer to :ref:`serialization_and_migration` in the
+            Migrations are not provided via the :attr:`model`/:meth:`from_model` API. Use
+            :attr:`json`/:meth:`from_json` instead. Refer to :ref:`serialization_and_migration` in the
             documentation for details.
         """
 
@@ -193,7 +193,7 @@ class BaseState(ABC):
         """
         Args:
             serialized: A JSON-serializable Python object holding the internal state of a :class:`BaseState`,
-                as produced by :meth:`json`.
+                as produced by :attr:`json`.
             identity_key_format: The format in which the identity public key is included in bundles/headers.
             hash_function: A 256 or 512-bit hash function.
             info: A (byte) string identifying the application.
@@ -478,9 +478,9 @@ class BaseState(ABC):
 
     def hide_pre_key(self, pre_key_pub: bytes) -> bool:
         """
-        Hide a pre key from the bundle returned by :meth:`bundle` and pre key count returned by
+        Hide a pre key from the bundle returned by :attr:`bundle` and pre key count returned by
         :meth:`get_num_visible_pre_keys`, but keep the pre key for cryptographic operations. Hidden pre keys
-        are not included in the serialized state as returned by :meth:`model` and :meth:`json`.
+        are not included in the serialized state as returned by :attr:`model` and :attr:`json`.
 
         Args:
             pre_key_pub: The pre key to hide.
@@ -528,7 +528,7 @@ class BaseState(ABC):
         """
         Returns:
             The number of visible pre keys available. The number returned here matches the number of pre keys
-            included in the bundle returned by :meth:`bundle`.
+            included in the bundle returned by :attr:`bundle`.
         """
 
         return len(self.__pre_keys)

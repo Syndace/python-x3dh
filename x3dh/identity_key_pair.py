@@ -4,7 +4,7 @@ from __future__ import annotations  # pylint: disable=unused-variable
 from abc import ABC, abstractmethod
 from base64 import b64decode, b64encode
 import json
-from typing import cast
+from typing import NoReturn, cast
 
 import xeddsa
 
@@ -18,6 +18,11 @@ __all__ = [  # pylint: disable=unused-variable
     "IdentityKeyPairPriv",
     "IdentityKeyPairSeed"
 ]
+
+
+# See https://github.com/python/mypy/issues/6366
+def _assert_never(value: NoReturn) -> NoReturn:
+    assert False, f"Unhandled type: {type(value).__name__}"
 
 
 class IdentityKeyPair(ABC):
@@ -62,14 +67,14 @@ class IdentityKeyPair(ABC):
         """
         Args:
             model: The pydantic model holding the internal state of an :class:`IdentityKeyPair`, as produced
-                by :meth:`model`.
+                by :attr:`model`.
 
         Returns:
             A configured instance of :class:`IdentityKeyPair`, with internal state restored from the model.
 
         Warning:
-            Migrations are not provided via the :meth:`model`/:meth:`from_model` API. Use
-            :meth:`json`/:meth:`from_json` instead. Refer to :ref:`serialization_and_migration` in the
+            Migrations are not provided via the :attr:`model`/:meth:`from_model` API. Use
+            :attr:`json`/:meth:`from_json` instead. Refer to :ref:`serialization_and_migration` in the
             documentation for details.
         """
 
@@ -78,16 +83,14 @@ class IdentityKeyPair(ABC):
         if model.secret_type is SecretType.SEED:
             return IdentityKeyPairSeed(b64decode(model.secret_b64))
 
-        # The type of model.secret_type evaluates to "Never" here, thus is allowed to be returned and
-        # satisfies pylint.
-        return model.secret_type
+        _assert_never(model.secret_type)
 
     @staticmethod
     def from_json(serialized: JSONObject) -> "IdentityKeyPair":
         """
         Args:
             serialized: A JSON-serializable Python object holding the internal state of an
-                :class:`IdentityKeyPair`, as produced by :meth:`json`.
+                :class:`IdentityKeyPair`, as produced by :attr:`json`.
 
         Returns:
             A configured instance of :class:`IdentityKeyPair`, with internal state restored from the

@@ -1,5 +1,5 @@
-x3dh
-====
+Package: x3dh
+=============
 
 .. toctree::
     Module: base_state <base_state>

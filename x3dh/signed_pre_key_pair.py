@@ -64,14 +64,14 @@ class SignedPreKeyPair(NamedTuple):
         """
         Args:
             model: The pydantic model holding the internal state of a :class:`SignedPreKeyPair`, as produced
-                by :meth:`model`.
+                by :attr:`model`.
 
         Returns:
             A configured instance of :class:`SignedPreKeyPair`, with internal state restored from the model.
 
         Warning:
-            Migrations are not provided via the :meth:`model`/:meth:`from_model` API. Use
-            :meth:`json`/:meth:`from_json` instead. Refer to :ref:`serialization_and_migration` in the
+            Migrations are not provided via the :attr:`model`/:meth:`from_model` API. Use
+            :attr:`json`/:meth:`from_json` instead. Refer to :ref:`serialization_and_migration` in the
             documentation for details.
         """
 
@@ -86,7 +86,7 @@ class SignedPreKeyPair(NamedTuple):
         """
         Args:
             serialized: A JSON-serializable Python object holding the internal state of a
-                :class:`SignedPreKeyPair`, as produced by :meth:`json`.
+                :class:`SignedPreKeyPair`, as produced by :attr:`json`.
 
         Returns:
             A configured instance of :class:`SignedPreKeyPair`, with internal state restored from the

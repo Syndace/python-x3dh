@@ -49,7 +49,7 @@ class PreStableModel(BaseModel):
 def parse_identity_key_pair_model(serialized: JSONObject) -> IdentityKeyPairModel:
     """
     Parse a serialized :class:`~x3dh.identity_key_pair.IdentityKeyPair` instance, as returned by
-    :meth:`~x3dh.identity_key_pair.IdentityKeyPair.json`, into the most recent pydantic model available for
+    :attr:`~x3dh.identity_key_pair.IdentityKeyPair.json`, into the most recent pydantic model available for
     the class. Perform migrations in case the pydantic models were updated.
 
     Args:
@@ -79,7 +79,7 @@ def parse_identity_key_pair_model(serialized: JSONObject) -> IdentityKeyPairMode
 def parse_signed_pre_key_pair_model(serialized: JSONObject) -> SignedPreKeyPairModel:
     """
     Parse a serialized :class:`~x3dh.signed_pre_key_pair.SignedPreKeyPair` instance, as returned by
-    :meth:`~x3dh.signed_pre_key_pair.SignedPreKeyPair.json`, into the most recent pydantic model available for
+    :attr:`~x3dh.signed_pre_key_pair.SignedPreKeyPair.json`, into the most recent pydantic model available for
     the class. Perform migrations in case the pydantic models were updated.
 
     Args:
@@ -109,7 +109,7 @@ def parse_signed_pre_key_pair_model(serialized: JSONObject) -> SignedPreKeyPairM
 def parse_base_state_model(serialized: JSONObject) -> Tuple[BaseStateModel, bool]:
     """
     Parse a serialized :class:`~x3dh.base_state.BaseState` instance, as returned by
-    :meth:`~x3dh.base_state.BaseState.json`, into the most recent pydantic model available for the class.
+    :attr:`~x3dh.base_state.BaseState.json`, into the most recent pydantic model available for the class.
     Perform migrations in case the pydantic models were updated. Supports migration of pre-stable data.
 
     Args:

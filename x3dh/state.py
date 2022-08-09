@@ -143,7 +143,7 @@ class State(BaseState):
         """
         Args:
             model: The pydantic model holding the internal state of a :class:`State`, as produced by
-                :meth:`~x3dh.base_state.BaseState.model`.
+                :attr:`~x3dh.base_state.BaseState.model`.
             identity_key_format: The format in which the identity public key is included in bundles/headers.
             hash_function: A 256 or 512-bit hash function.
             info: A (byte) string identifying the application.
@@ -156,8 +156,8 @@ class State(BaseState):
             A configured instance of :class:`State`, with internal state restored from the model.
 
         Warning:
-            Migrations are not provided via the :meth:`~x3dh.base_state.BaseState.model`/:meth:`from_model`
-            API. Use :meth:`~x3dh.base_state.BaseState.json`/:meth:`from_json` instead. Refer to
+            Migrations are not provided via the :attr:`~x3dh.base_state.BaseState.model`/:meth:`from_model`
+            API. Use :attr:`~x3dh.base_state.BaseState.json`/:meth:`from_json` instead. Refer to
             :ref:`serialization_and_migration` in the documentation for details.
         """
         # pylint: disable=protected-access
@@ -199,7 +199,7 @@ class State(BaseState):
         """
         Args:
             serialized: A JSON-serializable Python object holding the internal state of a :class:`State`,
-                as produced by :meth:`~x3dh.base_state.BaseState.json`.
+                as produced by :attr:`~x3dh.base_state.BaseState.json`.
             identity_key_format: The format in which the identity public key is included in bundles/headers.
             hash_function: A 256 or 512-bit hash function.
             info: A (byte) string identifying the application.
