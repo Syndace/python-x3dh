@@ -21,8 +21,6 @@ __all__ = [  # pylint: disable=unused-variable
     "BaseState",
     "KeyAgreementException",
 
-    # TODO: Expose identity_key_pair stuff
-
     # .models
     "BaseStateModel",
     "IdentityKeyPairModel",
