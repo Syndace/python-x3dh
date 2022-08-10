@@ -2,7 +2,6 @@
 from __future__ import annotations  # pylint: disable=unused-variable
 
 from abc import ABC, abstractmethod
-from base64 import b64decode, b64encode
 import json
 from typing import NoReturn, cast
 
@@ -51,7 +50,7 @@ class IdentityKeyPair(ABC):
             The internal state of this :class:`IdentityKeyPair` as a pydantic model.
         """
 
-        return IdentityKeyPairModel(secret_b64=b64encode(self.secret), secret_type=self.secret_type)
+        return IdentityKeyPairModel(secret=self.secret, secret_type=self.secret_type)
 
     @property
     def json(self) -> JSONObject:
@@ -79,9 +78,9 @@ class IdentityKeyPair(ABC):
         """
 
         if model.secret_type is SecretType.PRIV:
-            return IdentityKeyPairPriv(b64decode(model.secret_b64))
+            return IdentityKeyPairPriv(model.secret)
         if model.secret_type is SecretType.SEED:
-            return IdentityKeyPairSeed(b64decode(model.secret_b64))
+            return IdentityKeyPairSeed(model.secret)
 
         _assert_never(model.secret_type)
 

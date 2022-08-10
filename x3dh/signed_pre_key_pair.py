@@ -1,7 +1,6 @@
 # This import from future (theoretically) enables sphinx_autodoc_typehints to handle type aliases better
 from __future__ import annotations  # pylint: disable=unused-variable
 
-from base64 import b64decode, b64encode
 import json
 from typing import NamedTuple, cast
 
@@ -44,11 +43,7 @@ class SignedPreKeyPair(NamedTuple):
             The internal state of this :class:`SignedPreKeyPair` as a pydantic model.
         """
 
-        return SignedPreKeyPairModel(
-            priv_b64=b64encode(self.priv),
-            sig_b64=b64encode(self.sig),
-            timestamp=self.timestamp
-        )
+        return SignedPreKeyPairModel(priv=self.priv, sig=self.sig, timestamp=self.timestamp)
 
     @property
     def json(self) -> JSONObject:
@@ -75,11 +70,7 @@ class SignedPreKeyPair(NamedTuple):
             documentation for details.
         """
 
-        return SignedPreKeyPair(
-            priv=b64decode(model.priv_b64),
-            sig=b64decode(model.sig_b64),
-            timestamp=model.timestamp
-        )
+        return SignedPreKeyPair(priv=model.priv, sig=model.sig, timestamp=model.timestamp)
 
     @staticmethod
     def from_json(serialized: JSONObject) -> "SignedPreKeyPair":

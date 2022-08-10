@@ -1,6 +1,7 @@
 # This import from future (theoretically) enables sphinx_autodoc_typehints to handle type aliases better
 from __future__ import annotations  # pylint: disable=unused-variable
 
+import base64
 from typing import List, Tuple, cast
 
 from pydantic import BaseModel
@@ -137,16 +138,16 @@ def parse_base_state_model(serialized: JSONObject) -> Tuple[BaseStateModel, bool
 
         model = BaseStateModel(
             identity_key=IdentityKeyPairModel(
-                secret_b64=model.ik.priv.encode("ASCII"),
+                secret=base64.b64decode(model.ik.priv),
                 secret_type=SecretType.PRIV
             ),
             signed_pre_key=SignedPreKeyPairModel(
-                priv_b64=model.spk.key.priv.encode("ASCII"),
-                sig_b64=model.spk.signature.encode("ASCII"),
+                priv=base64.b64decode(model.spk.key.priv),
+                sig=base64.b64decode(model.spk.signature),
                 timestamp=int(model.spk.timestamp)
             ),
             old_signed_pre_key=None,
-            pre_keys_b64={ pre_key.priv.encode("ASCII") for pre_key in model.otpks }
+            pre_keys={ base64.b64decode(pre_key.priv) for pre_key in model.otpks }
         )
 
     # Once all migrations have been applied, the model should be an instance of the most recent model

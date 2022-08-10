@@ -2,7 +2,6 @@
 from __future__ import annotations  # pylint: disable=unused-variable
 
 from abc import ABC, abstractmethod
-from base64 import b64decode, b64encode
 import json
 import time
 import secrets
@@ -128,7 +127,7 @@ class BaseState(ABC):
             identity_key=self.__identity_key.model,
             signed_pre_key=self.__signed_pre_key.model,
             old_signed_pre_key=None if self.__old_signed_pre_key is None else self.__old_signed_pre_key.model,
-            pre_keys_b64={ b64encode(pre_key.priv) for pre_key in self.__pre_keys }
+            pre_keys={ pre_key.priv for pre_key in self.__pre_keys }
         )
 
     @property
@@ -177,7 +176,7 @@ class BaseState(ABC):
             if model.old_signed_pre_key is None
             else SignedPreKeyPair.from_model(model.old_signed_pre_key)
         )
-        self.__pre_keys = { PreKeyPair(b64decode(pre_key_b64)) for pre_key_b64 in model.pre_keys_b64 }
+        self.__pre_keys = { PreKeyPair(pre_key) for pre_key in model.pre_keys }
         self.__hidden_pre_keys = set()
 
         return self
