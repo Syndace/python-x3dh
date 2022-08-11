@@ -242,6 +242,15 @@ class BaseState(ABC):
         # Add the current timestamp
         return SignedPreKeyPair(priv=priv, sig=sig, timestamp=int(time.time()))
 
+    @property
+    def old_signed_pre_key(self) -> Optional[bytes]:
+        """
+        Returns:
+            The old signed pre key, if there is one.
+        """
+
+        return None if self.__old_signed_pre_key is None else self.__old_signed_pre_key.pub
+
     def signed_pre_key_age(self) -> int:
         """
         Returns:
@@ -258,6 +267,83 @@ class BaseState(ABC):
 
         self.__old_signed_pre_key = self.__signed_pre_key
         self.__signed_pre_key = self.__generate_spk()
+
+    @property
+    def hidden_pre_keys(self) -> Set[bytes]:
+        """
+        Returns:
+            The currently hidden pre keys.
+        """
+
+        return { pre_key.pub for pre_key in self.__hidden_pre_keys }
+
+    def hide_pre_key(self, pre_key_pub: bytes) -> bool:
+        """
+        Hide a pre key from the bundle returned by :attr:`bundle` and pre key count returned by
+        :meth:`get_num_visible_pre_keys`, but keep the pre key for cryptographic operations. Hidden pre keys
+        are not included in the serialized state as returned by :attr:`model` and :attr:`json`.
+
+        Args:
+            pre_key_pub: The pre key to hide.
+
+        Returns:
+            Whether the pre key was visible before and is hidden now.
+        """
+
+        hidden_pre_keys = set(filter(lambda pre_key: pre_key.pub == pre_key_pub, self.__pre_keys))
+
+        self.__pre_keys -= hidden_pre_keys
+        self.__hidden_pre_keys |= hidden_pre_keys
+
+        return len(hidden_pre_keys) > 0
+
+    def delete_pre_key(self, pre_key_pub: bytes) -> bool:
+        """
+        Delete a pre key.
+
+        Args:
+            pre_key_pub: The pre key to delete. Can be visible or hidden.
+
+        Returns:
+            Whether the pre key existed before and is deleted now.
+        """
+
+        deleted_pre_keys = set(filter(
+            lambda pre_key: pre_key.pub == pre_key_pub,
+            self.__pre_keys | self.__hidden_pre_keys
+        ))
+
+        self.__pre_keys -= deleted_pre_keys
+        self.__hidden_pre_keys -= deleted_pre_keys
+
+        return len(deleted_pre_keys) > 0
+
+    def delete_hidden_pre_keys(self) -> None:
+        """
+        Delete all pre keys that were previously hidden using :meth:`hide_pre_key`.
+        """
+
+        self.__hidden_pre_keys = set()
+
+    def get_num_visible_pre_keys(self) -> int:
+        """
+        Returns:
+            The number of visible pre keys available. The number returned here matches the number of pre keys
+            included in the bundle returned by :attr:`bundle`.
+        """
+
+        return len(self.__pre_keys)
+
+    def generate_pre_keys(self, num_pre_keys: int) -> None:
+        """
+        Generate and store pre keys.
+
+        Args:
+            num_pre_keys: The number of pre keys to generate.
+        """
+
+        for _ in range(num_pre_keys):
+            self.__pre_keys.add(PreKeyPair(priv=secrets.token_bytes(32)))
 
     @property
     def bundle(self) -> Bundle:
@@ -474,71 +560,3 @@ class BaseState(ABC):
         )
 
         return shared_secret, associated_data, signed_pre_key
-
-    def hide_pre_key(self, pre_key_pub: bytes) -> bool:
-        """
-        Hide a pre key from the bundle returned by :attr:`bundle` and pre key count returned by
-        :meth:`get_num_visible_pre_keys`, but keep the pre key for cryptographic operations. Hidden pre keys
-        are not included in the serialized state as returned by :attr:`model` and :attr:`json`.
-
-        Args:
-            pre_key_pub: The pre key to hide.
-
-        Returns:
-            Whether the pre key was visible before and is hidden now.
-        """
-
-        hidden_pre_keys = set(filter(lambda pre_key: pre_key.pub == pre_key_pub, self.__pre_keys))
-
-        self.__pre_keys -= hidden_pre_keys
-        self.__hidden_pre_keys |= hidden_pre_keys
-
-        return len(hidden_pre_keys) > 0
-
-    def delete_pre_key(self, pre_key_pub: bytes) -> bool:
-        """
-        Delete a pre key.
-
-        Args:
-            pre_key_pub: The pre key to delete. Can be visible or hidden.
-
-        Returns:
-            Whether the pre key existed before and is deleted now.
-        """
-
-        deleted_pre_keys = set(filter(
-            lambda pre_key: pre_key.pub == pre_key_pub,
-            self.__pre_keys | self.__hidden_pre_keys
-        ))
-
-        self.__pre_keys -= deleted_pre_keys
-        self.__hidden_pre_keys -= deleted_pre_keys
-
-        return len(deleted_pre_keys) > 0
-
-    def delete_hidden_pre_keys(self) -> None:
-        """
-        Delete all pre keys that were previously hidden using :meth:`hide_pre_key`.
-        """
-
-        self.__hidden_pre_keys = set()
-
-    def get_num_visible_pre_keys(self) -> int:
-        """
-        Returns:
-            The number of visible pre keys available. The number returned here matches the number of pre keys
-            included in the bundle returned by :attr:`bundle`.
-        """
-
-        return len(self.__pre_keys)
-
-    def generate_pre_keys(self, num_pre_keys: int) -> None:
-        """
-        Generate and store pre keys.
-
-        Args:
-            num_pre_keys: The number of pre keys to generate.
-        """
-
-        for _ in range(num_pre_keys):
-            self.__pre_keys.add(PreKeyPair(priv=secrets.token_bytes(32)))
