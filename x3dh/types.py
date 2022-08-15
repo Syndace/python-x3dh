@@ -2,7 +2,7 @@
 from __future__ import annotations  # pylint: disable=unused-variable
 
 import enum
-from typing import List, Mapping, NamedTuple, NoReturn, Optional, Set, Union
+from typing import FrozenSet, List, Mapping, NamedTuple, NoReturn, Optional, Union
 
 from cryptography.hazmat.primitives import hashes
 
@@ -59,7 +59,7 @@ class Bundle(NamedTuple):
     identity_key: bytes
     signed_pre_key: bytes
     signed_pre_key_sig: bytes
-    pre_keys: Set[bytes]
+    pre_keys: FrozenSet[bytes]
 
 
 class Header(NamedTuple):

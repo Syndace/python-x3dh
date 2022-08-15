@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import json
 import time
 import secrets
-from typing import Optional, Set, Tuple, Type, TypeVar, cast
+from typing import FrozenSet, Optional, Set, Tuple, Type, TypeVar, cast
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
@@ -127,7 +127,7 @@ class BaseState(ABC):
             identity_key=self.__identity_key.model,
             signed_pre_key=self.__signed_pre_key.model,
             old_signed_pre_key=None if self.__old_signed_pre_key is None else self.__old_signed_pre_key.model,
-            pre_keys={ pre_key.priv for pre_key in self.__pre_keys }
+            pre_keys=frozenset(pre_key.priv for pre_key in self.__pre_keys)
         )
 
     @property
@@ -269,13 +269,13 @@ class BaseState(ABC):
         self.__signed_pre_key = self.__generate_spk()
 
     @property
-    def hidden_pre_keys(self) -> Set[bytes]:
+    def hidden_pre_keys(self) -> FrozenSet[bytes]:
         """
         Returns:
             The currently hidden pre keys.
         """
 
-        return { pre_key.pub for pre_key in self.__hidden_pre_keys }
+        return frozenset(pre_key.pub for pre_key in self.__hidden_pre_keys)
 
     def hide_pre_key(self, pre_key_pub: bytes) -> bool:
         """
@@ -290,7 +290,7 @@ class BaseState(ABC):
             Whether the pre key was visible before and is hidden now.
         """
 
-        hidden_pre_keys = set(filter(lambda pre_key: pre_key.pub == pre_key_pub, self.__pre_keys))
+        hidden_pre_keys = frozenset(filter(lambda pre_key: pre_key.pub == pre_key_pub, self.__pre_keys))
 
         self.__pre_keys -= hidden_pre_keys
         self.__hidden_pre_keys |= hidden_pre_keys
@@ -308,7 +308,7 @@ class BaseState(ABC):
             Whether the pre key existed before and is deleted now.
         """
 
-        deleted_pre_keys = set(filter(
+        deleted_pre_keys = frozenset(filter(
             lambda pre_key: pre_key.pub == pre_key_pub,
             self.__pre_keys | self.__hidden_pre_keys
         ))
@@ -362,7 +362,7 @@ class BaseState(ABC):
             ),
             signed_pre_key=self.__signed_pre_key.pub,
             signed_pre_key_sig=self.__signed_pre_key.sig,
-            pre_keys={ pre_key.pub for pre_key in self.__pre_keys }
+            pre_keys=frozenset(pre_key.pub for pre_key in self.__pre_keys)
         )
 
     #################

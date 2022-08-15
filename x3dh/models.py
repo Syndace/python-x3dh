@@ -1,4 +1,4 @@
-from typing import Any, Optional, Set
+from typing import Any, FrozenSet, Optional
 
 from pydantic import BaseModel, validator
 
@@ -92,7 +92,7 @@ class BaseStateModel(BaseModel):
     identity_key: IdentityKeyPairModel
     signed_pre_key: SignedPreKeyPairModel
     old_signed_pre_key: Optional[SignedPreKeyPairModel]
-    pre_keys: Set[bytes]
+    pre_keys: FrozenSet[bytes]
 
     # Workaround for correct serialization of bytes, see :func:`bytes_decoder` above for details.
     class Config:  # pylint: disable=missing-class-docstring
