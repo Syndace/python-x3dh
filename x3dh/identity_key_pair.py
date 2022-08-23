@@ -3,7 +3,8 @@ from __future__ import annotations  # pylint: disable=unused-variable
 
 from abc import ABC, abstractmethod
 import json
-from typing import NoReturn, cast
+from typing import cast
+from typing_extensions import assert_never
 
 import xeddsa
 
@@ -17,11 +18,6 @@ __all__ = [  # pylint: disable=unused-variable
     "IdentityKeyPairPriv",
     "IdentityKeyPairSeed"
 ]
-
-
-# See https://github.com/python/mypy/issues/6366
-def _assert_never(value: NoReturn) -> NoReturn:
-    assert False, f"Unhandled type: {type(value).__name__}"
 
 
 class IdentityKeyPair(ABC):
@@ -82,7 +78,7 @@ class IdentityKeyPair(ABC):
         if model.secret_type is SecretType.SEED:
             return IdentityKeyPairSeed(model.secret)
 
-        _assert_never(model.secret_type)
+        return assert_never(model.secret_type)
 
     @staticmethod
     def from_json(serialized: JSONObject) -> "IdentityKeyPair":

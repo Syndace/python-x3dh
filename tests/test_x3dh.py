@@ -248,7 +248,7 @@ def test_key_agreements() -> None:
             identity_key=bundle_b.identity_key,
             signed_pre_key=bundle_b.signed_pre_key,
             signed_pre_key_sig=bundle_b.signed_pre_key_sig,
-            pre_keys=set()
+            pre_keys=frozenset()
         )
 
         shared_secret_active, associated_data_active, header = state_a.get_shared_secret_active(
@@ -440,7 +440,7 @@ def test_pre_key_availability() -> None:
                         identity_key=bundle.identity_key,
                         signed_pre_key=bundle.signed_pre_key,
                         signed_pre_key_sig=bundle.signed_pre_key_sig,
-                        pre_keys=set()
+                        pre_keys=frozenset()
                     )
 
                 should_fail = require_pre_key and not include_pre_key
@@ -470,7 +470,7 @@ def test_pre_key_availability() -> None:
                         identity_key=bundle.identity_key,
                         signed_pre_key=bundle.signed_pre_key,
                         signed_pre_key_sig=bundle.signed_pre_key_sig,
-                        pre_keys=set()
+                        pre_keys=frozenset()
                     )
 
                 # Perform the active half of the key agreement, using a pre key only if required for
@@ -526,7 +526,7 @@ def test_signed_pre_key_rotation() -> None:
                 identity_key=bundle_a.identity_key,
                 signed_pre_key=bundle_a.signed_pre_key,
                 signed_pre_key_sig=bundle_a.signed_pre_key_sig,
-                pre_keys=set()
+                pre_keys=frozenset()
             )
 
             time_mock.return_value = current_time + THREE_DAYS
@@ -643,7 +643,7 @@ def test_old_signed_pre_key() -> None:
             identity_key=bundle_a.identity_key,
             signed_pre_key=bundle_a.signed_pre_key,
             signed_pre_key_sig=bundle_a.signed_pre_key_sig,
-            pre_keys=set()
+            pre_keys=frozenset()
         )
         shared_secret_active, associated_data_active, header = state_b.get_shared_secret_active(
             bundle_a_no_pre_keys,

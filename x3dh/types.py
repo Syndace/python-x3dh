@@ -2,7 +2,8 @@
 from __future__ import annotations  # pylint: disable=unused-variable
 
 import enum
-from typing import FrozenSet, List, Mapping, NamedTuple, NoReturn, Optional, Union
+from typing import FrozenSet, List, Mapping, NamedTuple, Optional, Union
+from typing_extensions import assert_never
 
 from cryptography.hazmat.primitives import hashes
 
@@ -15,11 +16,6 @@ __all__ = [  # pylint: disable=unused-variable
     "JSONObject",
     "SecretType"
 ]
-
-
-# See https://github.com/python/mypy/issues/6366
-def _assert_never(value: NoReturn) -> NoReturn:
-    assert False, f"Unhandled type: {type(value).__name__}"
 
 
 ################
@@ -115,7 +111,8 @@ class HashFunction(enum.Enum):
             return hashes.SHA256()
         if self is HashFunction.SHA_512:
             return hashes.SHA512()
-        _assert_never(self)
+
+        return assert_never(self)
 
 
 @enum.unique

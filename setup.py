@@ -59,7 +59,8 @@ setup(
     install_requires=[
         "XEdDSA>=1.0.0,<2",
         "cryptography>=3.3.2",
-        "pydantic>=1.7.4"
+        "pydantic>=1.7.4",
+        "typing-extensions>=4.3.0"
     ],
     python_requires=">=3.7",
     include_package_data=True,
