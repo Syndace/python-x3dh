@@ -22,6 +22,14 @@ __all__ = [  # pylint: disable=unused-variable
 ]
 
 
+try:
+    import pytest
+except ImportError:
+    pass
+else:
+    pytestmark = pytest.mark.asyncio  # pylint: disable=unused-variable
+
+
 def flip_random_bit(data: bytes, exclude_msb: bool = False) -> bytes:
     """
     Flip a random bit in a byte array.
@@ -183,7 +191,7 @@ def generate_settings(
             yield state_settings
 
 
-def test_key_agreements() -> None:
+async def test_key_agreements() -> None:
     """
     Test the general key agreement functionality.
     """
@@ -197,13 +205,13 @@ def test_key_agreements() -> None:
         bundle_b_before = get_bundle(state_b)
 
         # Perform the first, active half of the key agreement
-        shared_secret_active, associated_data_active, header = state_a.get_shared_secret_active(
+        shared_secret_active, associated_data_active, header = await state_a.get_shared_secret_active(
             bundle_b_before,
             "ad appendix".encode("ASCII")
         )
 
         # Perform the second, passive half of the key agreement
-        shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(
+        shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(
             header,
             "ad appendix".encode("ASCII")
         )
@@ -232,7 +240,7 @@ def test_key_agreements() -> None:
 
         # It should not be possible to accept the same header again:
         try:
-            state_b.get_shared_secret_passive(
+            await state_b.get_shared_secret_passive(
                 header,
                 "ad appendix".encode("ASCII")
             )
@@ -251,19 +259,19 @@ def test_key_agreements() -> None:
             pre_keys=frozenset()
         )
 
-        shared_secret_active, associated_data_active, header = state_a.get_shared_secret_active(
+        shared_secret_active, associated_data_active, header = await state_a.get_shared_secret_active(
             bundle_b,
             require_pre_key=False
         )
 
-        shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(
+        shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(
             header,
             require_pre_key=False
         )
         assert shared_secret_active == shared_secret_passive
         assert associated_data_active == associated_data_passive
 
-        shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(
+        shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(
             header,
             require_pre_key=False
         )
@@ -318,7 +326,7 @@ def test_configuration() -> None:
         state_settings["pre_key_refill_target"] = 100
 
 
-def test_pre_key_refill() -> None:
+async def test_pre_key_refill() -> None:
     """
     Test pre key refill.
     """
@@ -337,8 +345,8 @@ def test_pre_key_refill() -> None:
 
         # Perform a lot of key agreements and verify that the refill works as expected:
         for _ in range(100):
-            header = state_a.get_shared_secret_active(get_bundle(state_b))[2]
-            state_b.get_shared_secret_passive(header)
+            header = (await state_a.get_shared_secret_active(get_bundle(state_b)))[2]
+            await state_b.get_shared_secret_passive(header)
 
             num_pre_keys = len(get_bundle(state_b).pre_keys)
 
@@ -350,7 +358,7 @@ def test_pre_key_refill() -> None:
             prev = num_pre_keys
 
 
-def test_signed_pre_key_signature_verification() -> None:
+async def test_signed_pre_key_signature_verification() -> None:
     """
     Test signature verification of the signed pre key.
     """
@@ -358,14 +366,14 @@ def test_signed_pre_key_signature_verification() -> None:
     for state_settings in generate_settings("test_signed_pre_key_signature_verification".encode("ASCII")):
         identity_key_format: x3dh.IdentityKeyFormat = state_settings["identity_key_format"]
 
-        for _ in range(100):
+        for _ in range(8):
             state_a = create_state(state_settings)
             state_b = create_state(state_settings)
 
             bundle = get_bundle(state_b)
 
             # First, make sure that the active half of the key agreement usually works:
-            state_a.get_shared_secret_active(bundle)
+            await state_a.get_shared_secret_active(bundle)
 
             # Now, flip a random bit in
             # 1. the signature
@@ -382,7 +390,7 @@ def test_signed_pre_key_signature_verification() -> None:
                 pre_keys=bundle.pre_keys
             )
             try:
-                state_a.get_shared_secret_active(bundle_modified)
+                await state_a.get_shared_secret_active(bundle_modified)
                 assert False
             except x3dh.KeyAgreementException as e:
                 assert "signature" in str(e)
@@ -397,7 +405,7 @@ def test_signed_pre_key_signature_verification() -> None:
                 pre_keys=bundle.pre_keys
             )
             try:
-                state_a.get_shared_secret_active(bundle_modified)
+                await state_a.get_shared_secret_active(bundle_modified)
                 assert False
             except x3dh.KeyAgreementException as e:
                 assert "signature" in str(e)
@@ -411,13 +419,13 @@ def test_signed_pre_key_signature_verification() -> None:
                 pre_keys=bundle.pre_keys
             )
             try:
-                state_a.get_shared_secret_active(bundle_modified)
+                await state_a.get_shared_secret_active(bundle_modified)
                 assert False
             except x3dh.KeyAgreementException as e:
                 assert "signature" in str(e)
 
 
-def test_pre_key_availability() -> None:
+async def test_pre_key_availability() -> None:
     """
     Test whether key agreements without pre keys work/are rejected as expected.
     """
@@ -445,10 +453,10 @@ def test_pre_key_availability() -> None:
 
                 should_fail = require_pre_key and not include_pre_key
                 try:
-                    header = state_a.get_shared_secret_active(
+                    header = (await state_a.get_shared_secret_active(
                         bundle,
                         require_pre_key=require_pre_key
-                    )[2]
+                    ))[2]
                     assert not should_fail
                     assert (header.pre_key is not None) == include_pre_key
                 except x3dh.KeyAgreementException as e:
@@ -475,14 +483,14 @@ def test_pre_key_availability() -> None:
 
                 # Perform the active half of the key agreement, using a pre key only if required for
                 # the test.
-                shared_secret_active, _, header = state_a.get_shared_secret_active(
+                shared_secret_active, _, header = await state_a.get_shared_secret_active(
                     bundle,
                     require_pre_key=False
                 )
 
                 should_fail = require_pre_key and not include_pre_key
                 try:
-                    shared_secret_passive, _, _ = state_b.get_shared_secret_passive(
+                    shared_secret_passive, _, _ = await state_b.get_shared_secret_passive(
                         header,
                         require_pre_key=require_pre_key
                     )
@@ -498,7 +506,7 @@ THREE_DAYS = 3 * 24 * 60 * 60
 EIGHT_DAYS = 8 * 24 * 60 * 60
 
 
-def test_signed_pre_key_rotation() -> None:
+async def test_signed_pre_key_rotation() -> None:
     """
     Test signed pre key rotation logic.
     """
@@ -530,7 +538,7 @@ def test_signed_pre_key_rotation() -> None:
             )
 
             time_mock.return_value = current_time + THREE_DAYS
-            header_b = state_b.get_shared_secret_active(bundle_a, require_pre_key=False)[2]
+            header_b = (await state_b.get_shared_secret_active(bundle_a, require_pre_key=False))[2]
             state_b.rotate_signed_pre_key()
             assert time_mock.call_count == 1
             time_mock.reset_mock()
@@ -546,7 +554,7 @@ def test_signed_pre_key_rotation() -> None:
             # rotation.
             bundle_a_before = get_bundle(state_a)
             time_mock.return_value = current_time + THREE_DAYS
-            state_a.get_shared_secret_active(bundle_b)
+            await state_a.get_shared_secret_active(bundle_b)
             state_a.rotate_signed_pre_key()
             assert time_mock.call_count == 1
             time_mock.reset_mock()
@@ -556,7 +564,7 @@ def test_signed_pre_key_rotation() -> None:
             # A rotation reads the time twice.
             bundle_a_before = get_bundle(state_a)
             time_mock.return_value = current_time + EIGHT_DAYS
-            state_a.get_shared_secret_active(bundle_b)
+            await state_a.get_shared_secret_active(bundle_b)
             state_a.rotate_signed_pre_key()
             assert time_mock.call_count == 2
             time_mock.reset_mock()
@@ -574,7 +582,7 @@ def test_signed_pre_key_rotation() -> None:
             # rotation.
             bundle_a_before = get_bundle(state_a)
             time_mock.return_value = current_time + THREE_DAYS
-            state_a.get_shared_secret_passive(header_b, require_pre_key=False)
+            await state_a.get_shared_secret_passive(header_b, require_pre_key=False)
             state_a.rotate_signed_pre_key()
             assert time_mock.call_count == 1
             time_mock.reset_mock()
@@ -584,7 +592,7 @@ def test_signed_pre_key_rotation() -> None:
             # A rotation reads the time twice.
             bundle_a_before = get_bundle(state_a)
             time_mock.return_value = current_time + EIGHT_DAYS
-            state_a.get_shared_secret_passive(header_b, require_pre_key=False)
+            await state_a.get_shared_secret_passive(header_b, require_pre_key=False)
             state_a.rotate_signed_pre_key()
             assert time_mock.call_count == 2
             time_mock.reset_mock()
@@ -623,7 +631,7 @@ def test_signed_pre_key_rotation() -> None:
             current_time += EIGHT_DAYS
 
 
-def test_old_signed_pre_key() -> None:
+async def test_old_signed_pre_key() -> None:
     """
     Test that the old signed pre key remains available for key agreements for one further rotation period.
     """
@@ -645,13 +653,13 @@ def test_old_signed_pre_key() -> None:
             signed_pre_key_sig=bundle_a.signed_pre_key_sig,
             pre_keys=frozenset()
         )
-        shared_secret_active, associated_data_active, header = state_b.get_shared_secret_active(
+        shared_secret_active, associated_data_active, header = await state_b.get_shared_secret_active(
             bundle_a_no_pre_keys,
             require_pre_key=False
         )
 
         # Make sure that this key agreement works as intended:
-        shared_secret_passive, associated_data_passive, _ = state_a.get_shared_secret_passive(
+        shared_secret_passive, associated_data_passive, _ = await state_a.get_shared_secret_passive(
             header,
             require_pre_key=False
         )
@@ -680,7 +688,7 @@ def test_old_signed_pre_key() -> None:
 
         # The old signed pre key should still be stored in state_a, thus the old key agreement header should
         # still work:
-        shared_secret_passive, associated_data_passive, _ = state_a.get_shared_secret_passive(
+        shared_secret_passive, associated_data_passive, _ = await state_a.get_shared_secret_passive(
             header,
             require_pre_key=False
         )
@@ -707,14 +715,14 @@ def test_old_signed_pre_key() -> None:
         # Now the signed pre key used in the header should not be available any more, the passive half of the
         # key agreement should fail:
         try:
-            state_a.get_shared_secret_passive(header, require_pre_key=False)
+            await state_a.get_shared_secret_passive(header, require_pre_key=False)
             assert False
         except x3dh.KeyAgreementException as e:
             assert "signed pre key" in str(e)
             assert "not available" in str(e)
 
 
-def test_serialization() -> None:
+async def test_serialization() -> None:
     """
     Test (de)serialization.
     """
@@ -724,10 +732,10 @@ def test_serialization() -> None:
         state_b = create_state(state_settings)
 
         # Make sure that the key agreement works normally:
-        shared_secret_active, associated_data_acitve, header = state_a.get_shared_secret_active(
+        shared_secret_active, associated_data_acitve, header = await state_a.get_shared_secret_active(
             get_bundle(state_b)
         )
-        shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(header)
+        shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(header)
         assert shared_secret_active == shared_secret_passive
         assert associated_data_acitve == associated_data_passive
 
@@ -735,11 +743,11 @@ def test_serialization() -> None:
         # key agreement:
         bundle_b_before = get_bundle(state_b)
 
-        shared_secret_active, associated_data_acitve, header = state_a.get_shared_secret_active(
+        shared_secret_active, associated_data_acitve, header = await state_a.get_shared_secret_active(
             get_bundle(state_b)
         )
         state_b = ExampleState.from_model(state_b.model, **state_settings)
-        shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(header)
+        shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(header)
         assert shared_secret_active == shared_secret_passive
         assert associated_data_acitve == associated_data_passive
 
@@ -753,19 +761,19 @@ def test_serialization() -> None:
         # Accepting a key agreement using a pre key results in the pre key being deleted
         # from the state. Use (de)serialization to circumvent the deletion of the pre key. This time
         # also serialize the structure into JSON:
-        shared_secret_active, associated_data_acitve, header = state_a.get_shared_secret_active(
+        shared_secret_active, associated_data_acitve, header = await state_a.get_shared_secret_active(
             get_bundle(state_b)
         )
         state_b_serialized = json.dumps(state_b.json)
 
         # Accepting the header should work once...
-        shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(header)
+        shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(header)
         assert shared_secret_active == shared_secret_passive
         assert associated_data_acitve == associated_data_passive
 
         # ...but fail the second time:
         try:
-            state_b.get_shared_secret_passive(header)
+            await state_b.get_shared_secret_passive(header)
             assert False
         except x3dh.KeyAgreementException as e:
             assert "pre key" in str(e)
@@ -773,7 +781,7 @@ def test_serialization() -> None:
 
         # After restoring the state, it should work again:
         state_b, needs_publish = ExampleState.from_json(json.loads(state_b_serialized), **state_settings)
-        shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(header)
+        shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(header)
         assert not needs_publish
         assert shared_secret_active == shared_secret_passive
         assert associated_data_acitve == associated_data_passive
@@ -782,7 +790,7 @@ def test_serialization() -> None:
 THIS_FILE_PATH = os.path.dirname(os.path.abspath(__file__))
 
 
-def test_migrations() -> None:
+async def test_migrations() -> None:
     """
     Test the migration from pre-stable.
     """
@@ -842,14 +850,14 @@ def test_migrations() -> None:
     get_bundle(state_b)
 
     # Complete the passive half of the key agreement as created by the pre-stable version:
-    shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(header)
+    shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(header)
     assert shared_secret_active == shared_secret_passive
     # Don't check the associated data, since formats have changed.
 
     # Try another key agreement using the migrated sessions:
-    shared_secret_active, associated_data_active, header = state_a.get_shared_secret_active(
+    shared_secret_active, associated_data_active, header = await state_a.get_shared_secret_active(
         get_bundle(state_b)
     )
-    shared_secret_passive, associated_data_passive, _ = state_b.get_shared_secret_passive(header)
+    shared_secret_passive, associated_data_passive, _ = await state_b.get_shared_secret_passive(header)
     assert shared_secret_active == shared_secret_passive
     assert associated_data_active == associated_data_passive

@@ -4,13 +4,13 @@ from __future__ import annotations  # pylint: disable=unused-variable
 from abc import abstractmethod
 from typing import Any, Optional, Tuple, Type, TypeVar
 
-from x3dh.identity_key_pair import IdentityKeyPair
-from x3dh.signed_pre_key_pair import SignedPreKeyPair
-
 from .base_state import BaseState
+from .crypto_provider import HashFunction
+from .identity_key_pair import IdentityKeyPair
 from .migrations import parse_base_state_model
 from .models import BaseStateModel
-from .types import Bundle, IdentityKeyFormat, HashFunction, Header, JSONObject
+from .signed_pre_key_pair import SignedPreKeyPair
+from .types import Bundle, IdentityKeyFormat, Header, JSONObject
 
 
 __all__ = [  # pylint: disable=unused-variable
@@ -256,7 +256,7 @@ class State(BaseState):
     # key agreement #
     #################
 
-    def get_shared_secret_passive(
+    async def get_shared_secret_passive(
         self,
         header: Header,
         associated_data_appendix: bytes = b"",
@@ -281,7 +281,7 @@ class State(BaseState):
                 contain (human-readable) details.
         """
 
-        shared_secret, associated_data, signed_pre_key_pair = super().get_shared_secret_passive(
+        shared_secret, associated_data, signed_pre_key_pair = await super().get_shared_secret_passive(
             header,
             associated_data_appendix,
             require_pre_key

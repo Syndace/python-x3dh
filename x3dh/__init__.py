@@ -2,9 +2,10 @@ from .version import __version__
 from .project import project
 
 from .base_state import KeyAgreementException, BaseState
+from .crypto_provider import HashFunction
 from .models import BaseStateModel, IdentityKeyPairModel, SignedPreKeyPairModel
 from .state import State
-from .types import Bundle, HashFunction, Header, IdentityKeyFormat, JSONObject
+from .types import Bundle, Header, IdentityKeyFormat, JSONObject
 
 
 # Fun:
@@ -21,6 +22,9 @@ __all__ = [  # pylint: disable=unused-variable
     "BaseState",
     "KeyAgreementException",
 
+    # .crypto_provider
+    "HashFunction",
+
     # .models
     "BaseStateModel",
     "IdentityKeyPairModel",
@@ -31,7 +35,6 @@ __all__ = [  # pylint: disable=unused-variable
 
     # .types
     "Bundle",
-    "HashFunction",
     "Header",
     "IdentityKeyFormat",
     "JSONObject"

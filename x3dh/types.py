@@ -3,15 +3,11 @@ from __future__ import annotations  # pylint: disable=unused-variable
 
 import enum
 from typing import FrozenSet, List, Mapping, NamedTuple, Optional, Union
-from typing_extensions import assert_never
-
-from cryptography.hazmat.primitives import hashes
 
 
 __all__ = [  # pylint: disable=unused-variable
     "Bundle",
     "IdentityKeyFormat",
-    "HashFunction",
     "Header",
     "JSONObject",
     "SecretType"
@@ -88,31 +84,6 @@ class IdentityKeyFormat(enum.Enum):
 
     CURVE_25519: str = "CURVE_25519"
     ED_25519: str = "ED_25519"
-
-
-@enum.unique
-class HashFunction(enum.Enum):
-    """
-    Enumeration of the hash functions supported for the key derivation step of X3DH.
-    """
-
-    SHA_256: str = "SHA_256"
-    SHA_512: str = "SHA_512"
-
-    @property
-    def as_cryptography(self) -> hashes.HashAlgorithm:
-        """
-        Returns:
-            The implementation of the hash function as a cryptography
-            :class:`~cryptography.hazmat.primitives.hashes.HashAlgorithm` object.
-        """
-
-        if self is HashFunction.SHA_256:
-            return hashes.SHA256()
-        if self is HashFunction.SHA_512:
-            return hashes.SHA512()
-
-        return assert_never(self)
 
 
 @enum.unique

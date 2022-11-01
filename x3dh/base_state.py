@@ -7,17 +7,16 @@ import time
 import secrets
 from typing import FrozenSet, Optional, Set, Tuple, Type, TypeVar, cast
 
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 import xeddsa
 
+from .crypto_provider import HashFunction
+from .crypto_provider_cryptography import CryptoProviderImpl
 from .identity_key_pair import IdentityKeyPair, IdentityKeyPairSeed
 from .migrations import parse_base_state_model
 from .models import BaseStateModel
 from .pre_key_pair import PreKeyPair
 from .signed_pre_key_pair import SignedPreKeyPair
-from .types import Bundle, IdentityKeyFormat, HashFunction, Header, JSONObject
+from .types import Bundle, IdentityKeyFormat, Header, JSONObject
 
 
 __all__ = [  # pylint: disable=unused-variable
@@ -51,7 +50,7 @@ class BaseState(ABC):
     def __init__(self) -> None:
         # Just the type definitions here
         self.__identity_key_format: IdentityKeyFormat
-        self.__hash_function: hashes.HashAlgorithm
+        self.__hash_function: HashFunction
         self.__info: bytes
         self.__identity_key: IdentityKeyPair
         self.__signed_pre_key: SignedPreKeyPair
@@ -81,7 +80,7 @@ class BaseState(ABC):
 
         self = cls()
         self.__identity_key_format = identity_key_format
-        self.__hash_function = hash_function.as_cryptography
+        self.__hash_function = hash_function
         self.__info = info
         self.__identity_key = identity_key_pair or IdentityKeyPairSeed(secrets.token_bytes(32))
         self.__signed_pre_key = self.__generate_spk()
@@ -167,7 +166,7 @@ class BaseState(ABC):
 
         self = cls()
         self.__identity_key_format = identity_key_format
-        self.__hash_function = hash_function.as_cryptography
+        self.__hash_function = hash_function
         self.__info = info
         self.__identity_key = IdentityKeyPair.from_model(model.identity_key)
         self.__signed_pre_key = SignedPreKeyPair.from_model(model.signed_pre_key)
@@ -369,7 +368,7 @@ class BaseState(ABC):
     # key agreement #
     #################
 
-    def get_shared_secret_active(
+    async def get_shared_secret_active(
         self,
         bundle: Bundle,
         associated_data_appendix: bytes = b"",
@@ -435,17 +434,17 @@ class BaseState(ABC):
         dh4 = b"" if pre_key is None else xeddsa.x25519(ephemeral_key, pre_key)
 
         # Prepare salt and padding
-        salt = b"\x00" * self.__hash_function.digest_size
+        salt = b"\x00" * self.__hash_function.hash_size
         padding = b"\xFF" * 32
 
         # Use HKDF to derive the final shared secret
-        shared_secret = HKDF(
-            algorithm=self.__hash_function,
-            length=32,
-            salt=salt,
-            info=self.__info,
-            backend=default_backend()
-        ).derive(padding + dh1 + dh2 + dh3 + dh4)
+        shared_secret = await CryptoProviderImpl.hkdf_derive(
+            self.__hash_function,
+            32,
+            salt,
+            self.__info,
+            padding + dh1 + dh2 + dh3 + dh4
+        )
 
         # Build the associated data for further use by other protocols
         associated_data = (
@@ -464,7 +463,7 @@ class BaseState(ABC):
 
         return shared_secret, associated_data, header
 
-    def get_shared_secret_passive(
+    async def get_shared_secret_passive(
         self,
         header: Header,
         associated_data_appendix: bytes = b"",
@@ -540,17 +539,17 @@ class BaseState(ABC):
         dh4 = b"" if pre_key is None else xeddsa.x25519(pre_key, header.ephemeral_key)
 
         # Prepare salt and padding
-        salt = b"\x00" * self.__hash_function.digest_size
+        salt = b"\x00" * self.__hash_function.hash_size
         padding = b"\xFF" * 32
 
         # Use HKDF to derive the final shared secret
-        shared_secret = HKDF(
-            algorithm=self.__hash_function,
-            length=32,
-            salt=salt,
-            info=self.__info,
-            backend=default_backend()
-        ).derive(padding + dh1 + dh2 + dh3 + dh4)
+        shared_secret = await CryptoProviderImpl.hkdf_derive(
+            self.__hash_function,
+            32,
+            salt,
+            self.__info,
+            padding + dh1 + dh2 + dh3 + dh4
+        )
 
         # Build the associated data for further use by other protocols
         associated_data = (
