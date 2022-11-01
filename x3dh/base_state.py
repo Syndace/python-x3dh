@@ -8,14 +8,20 @@ from typing import FrozenSet, Optional, Set, Tuple, Type, TypeVar, cast
 
 import xeddsa
 
-from .crypto_provider import HashFunction
-from .crypto_provider_cryptography import CryptoProviderImpl
+from .crypto_provider import CryptoProvider, HashFunction
 from .identity_key_pair import IdentityKeyPair, IdentityKeyPairSeed
 from .migrations import parse_base_state_model
 from .models import BaseStateModel
 from .pre_key_pair import PreKeyPair
 from .signed_pre_key_pair import SignedPreKeyPair
 from .types import Bundle, IdentityKeyFormat, Header, JSONObject
+
+
+CryptoProviderImpl: Type[CryptoProvider]
+try:
+    from .crypto_provider_brython import CryptoProviderImpl
+except ImportError:
+    from .crypto_provider_cryptography import CryptoProviderImpl
 
 
 __all__ = [
