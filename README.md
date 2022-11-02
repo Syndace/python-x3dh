@@ -1,6 +1,6 @@
 [![PyPI](https://img.shields.io/pypi/v/X3DH.svg)](https://pypi.org/project/X3DH/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/X3DH.svg)](https://pypi.org/project/X3DH/)
-[![Build Status](https://travis-ci.org/Syndace/python-x3dh.svg?branch=stable)](https://travis-ci.org/Syndace/python-x3dh)
+[![Build Status](https://github.com/Syndace/python-x3dh/actions/workflows/test-on-push.yml/badge.svg)](https://github.com/Syndace/python-x3dh/actions/workflows/test-on-push.yml)
 [![Documentation Status](https://readthedocs.org/projects/python-x3dh/badge/?version=latest)](https://python-x3dh.readthedocs.io/en/latest/?badge=latest)
 
 # python-x3dh #
@@ -22,17 +22,13 @@ In the X3DH specification, the identity key is a Curve25519/Curve448 key and [XE
 python-x3dh uses [pytest](https://docs.pytest.org/en/latest/) as its testing framework, [mypy](http://mypy-lang.org/) for static type checks and both [pylint](https://pylint.pycqa.org/en/latest/) and [Flake8](https://flake8.pycqa.org/en/latest/) for linting. All tests/checks can be run locally with the following commands:
 
 ```sh
-$ pip install --upgrade pytest pytest-asyncio mypy pylint flake8
+$ pip install --upgrade pytest pytest-asyncio pytest-cov mypy pylint flake8
 $ mypy --strict x3dh/ setup.py tests/
 $ pylint x3dh/ setup.py tests/
 $ flake8 x3dh/ setup.py tests/
-$ pytest
+$ pytest --cov=x3dh --cov-report term-missing:skip-covered
 ```
 
 ## Documentation ##
 
 View the documentation on [readthedocs.io](https://python-x3dh.readthedocs.io/) or build it locally, which requires the Python packages listed in `docs/requirements.txt`. With all dependencies installed, run `make html` in the `docs/` directory. You can find the generated documentation in `docs/_build/html/`.
-
-## Travis CI ##
-
-The project used to be built using Travis CI, which was amazing. Sadly, Travis fully closed their open-source support. I have yet to migrate somewhere else, until then the project will not be automatically tested.
