@@ -68,7 +68,8 @@ def parse_identity_key_pair_model(serialized: JSONObject) -> IdentityKeyPairMode
     # serialized from.
     version = cast(str, serialized["version"])
     model: BaseModel = {
-        IdentityKeyPairModel.construct().version: IdentityKeyPairModel
+        "1.0.0": IdentityKeyPairModel,
+        "1.0.1": IdentityKeyPairModel
     }[version](**serialized)
 
     # Once all migrations have been applied, the model should be an instance of the most recent model
@@ -98,7 +99,8 @@ def parse_signed_pre_key_pair_model(serialized: JSONObject) -> SignedPreKeyPairM
     # serialized from.
     version = cast(str, serialized["version"])
     model: BaseModel = {
-        SignedPreKeyPairModel.construct().version: SignedPreKeyPairModel
+        "1.0.0": SignedPreKeyPairModel,
+        "1.0.1": SignedPreKeyPairModel
     }[version](**serialized)
 
     # Once all migrations have been applied, the model should be an instance of the most recent model
@@ -129,7 +131,8 @@ def parse_base_state_model(serialized: JSONObject) -> Tuple[BaseStateModel, bool
     version = cast(str, serialized["version"]) if "version" in serialized else None
     model: BaseModel = {
         None: PreStableModel,
-        BaseStateModel.construct().version: BaseStateModel
+        "1.0.0": BaseStateModel,
+        "1.0.1": BaseStateModel
     }[version](**serialized)
 
     if isinstance(model, PreStableModel):

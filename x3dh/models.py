@@ -3,7 +3,6 @@ from typing import Any, FrozenSet, Optional
 from pydantic import BaseModel, validator
 
 from .types import SecretType
-from .version import __version__
 
 
 __all__ = [  # pylint: disable=unused-variable
@@ -55,7 +54,7 @@ class IdentityKeyPairModel(BaseModel):
     The model representing the internal state of an :class:`~x3dh.identity_key_pair.IdentityKeyPair`.
     """
 
-    version: str = __version__["short"]
+    version: str = "1.0.0"
     secret: bytes
     secret_type: SecretType
 
@@ -71,7 +70,7 @@ class SignedPreKeyPairModel(BaseModel):
     The model representing the internal state of a :class:`~x3dh.signed_pre_key_pair.SignedPreKeyPair`.
     """
 
-    version: str = __version__["short"]
+    version: str = "1.0.0"
     priv: bytes
     sig: bytes
     timestamp: int
@@ -88,7 +87,7 @@ class BaseStateModel(BaseModel):
     The model representing the internal state of a :class:`~x3dh.base_state.BaseState`.
     """
 
-    version: str = __version__["short"]
+    version: str = "1.0.0"
     identity_key: IdentityKeyPairModel
     signed_pre_key: SignedPreKeyPairModel
     old_signed_pre_key: Optional[SignedPreKeyPairModel]
