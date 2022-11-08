@@ -1,6 +1,6 @@
 [![PyPI](https://img.shields.io/pypi/v/X3DH.svg)](https://pypi.org/project/X3DH/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/X3DH.svg)](https://pypi.org/project/X3DH/)
-[![Build Status](https://github.com/Syndace/python-x3dh/actions/workflows/test-on-push.yml/badge.svg)](https://github.com/Syndace/python-x3dh/actions/workflows/test-on-push.yml)
+[![Build Status](https://github.com/Syndace/python-x3dh/actions/workflows/test-and-publish.yml/badge.svg)](https://github.com/Syndace/python-x3dh/actions/workflows/test-and-publish.yml)
 [![Documentation Status](https://readthedocs.org/projects/python-x3dh/badge/?version=latest)](https://python-x3dh.readthedocs.io/)
 
 # python-x3dh #
