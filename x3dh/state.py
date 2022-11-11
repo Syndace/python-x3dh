@@ -2,7 +2,7 @@
 from __future__ import annotations  # pylint: disable=unused-variable
 
 from abc import abstractmethod
-from typing import Any, Optional, Tuple, Type, TypeVar
+from typing import Optional, Tuple, Type, TypeVar
 
 from .base_state import BaseState
 from .crypto_provider import HashFunction
@@ -99,13 +99,10 @@ class State(BaseState):
     ####################
 
     @abstractmethod
-    def _publish_bundle(self, bundle: Bundle) -> Any:
+    def _publish_bundle(self, bundle: Bundle) -> None:
         """
         Args:
             bundle: The bundle to publish, overwriting previously published data.
-
-        Returns:
-            Anything, the return value is ignored.
 
         Note:
             In addition to publishing the bundle, this method can be used as a trigger to persist the state.
