@@ -35,8 +35,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Removed
 - Pre-stable (i.e. versions before 1.0.0) changelog omitted.
 
-[Unreleased]: https://github.com/Syndace/python-doubleratchet/compare/v1.0.3...HEAD
-[1.0.3]: https://github.com/Syndace/python-doubleratchet/compare/v1.0.2...v1.0.3
-[1.0.2]: https://github.com/Syndace/python-doubleratchet/compare/v1.0.1...v1.0.2
-[1.0.1]: https://github.com/Syndace/python-doubleratchet/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/Syndace/python-doubleratchet/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Syndace/python-x3dh/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/Syndace/python-x3dh/compare/v1.0.3...v1.0.4
+[1.0.3]: https://github.com/Syndace/python-x3dh/compare/v1.0.2...v1.0.3
+[1.0.2]: https://github.com/Syndace/python-x3dh/compare/v1.0.1...v1.0.2
+[1.0.1]: https://github.com/Syndace/python-x3dh/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/Syndace/python-x3dh/releases/tag/v1.0.0
