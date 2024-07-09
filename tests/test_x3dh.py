@@ -279,7 +279,7 @@ async def test_key_agreements() -> None:
         assert associated_data_active == associated_data_passive
 
 
-def test_configuration() -> None:
+async def test_configuration() -> None:
     """
     Test whether incorrect argument values are rejected correctly.
     """

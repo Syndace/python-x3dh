@@ -137,7 +137,7 @@ class BaseState(ABC):
             keys hidden using :meth:`hide_pre_key` are not considered part of the state.
         """
 
-        return cast(JSONObject, json.loads(self.model.json()))
+        return cast(JSONObject, json.loads(self.model.model_dump_json()))
 
     @classmethod
     def from_model(

@@ -42,7 +42,7 @@ class PreStableModel(BaseModel):
     """
 
     changed: bool
-    ik: PreStableKeyPairModel  # pylint: disable=invalid-name
+    ik: PreStableKeyPairModel
     spk: PreStableSignedPreKeyModel
     otpks: List[PreStableKeyPairModel]
 
@@ -70,7 +70,7 @@ def parse_identity_key_pair_model(serialized: JSONObject) -> IdentityKeyPairMode
     model: BaseModel = {
         "1.0.0": IdentityKeyPairModel,
         "1.0.1": IdentityKeyPairModel
-    }[version](**serialized)
+    }[version](**serialized)  # type: ignore[arg-type]
 
     # Once all migrations have been applied, the model should be an instance of the most recent model
     assert isinstance(model, IdentityKeyPairModel)
@@ -101,7 +101,7 @@ def parse_signed_pre_key_pair_model(serialized: JSONObject) -> SignedPreKeyPairM
     model: BaseModel = {
         "1.0.0": SignedPreKeyPairModel,
         "1.0.1": SignedPreKeyPairModel
-    }[version](**serialized)
+    }[version](**serialized)  # type: ignore[arg-type]
 
     # Once all migrations have been applied, the model should be an instance of the most recent model
     assert isinstance(model, SignedPreKeyPairModel)
@@ -150,7 +150,7 @@ def parse_base_state_model(serialized: JSONObject) -> Tuple[BaseStateModel, bool
                 timestamp=int(model.spk.timestamp)
             ),
             old_signed_pre_key=None,
-            pre_keys={ base64.b64decode(pre_key.priv) for pre_key in model.otpks }
+            pre_keys=frozenset({ base64.b64decode(pre_key.priv) for pre_key in model.otpks })
         )
 
     # Once all migrations have been applied, the model should be an instance of the most recent model

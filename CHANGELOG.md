@@ -6,8 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [1.0.4] - 9th of July 2024
+
 ### Changed
 - Removed unnecessary complexity/flexibility by returning `None` instead of `Any` from abstract methods whose return values are not used
+- 2024 maintenance (bumped Python versions, adjusted for updates to pydantic, mypy, pylint, pytest and GitHub actions)
 
 ## [1.0.3] - 8th of November 2022
 

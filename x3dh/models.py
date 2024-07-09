@@ -1,6 +1,9 @@
 from typing import Any, FrozenSet, Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel
+from pydantic.functional_serializers import PlainSerializer
+from pydantic.functional_validators import PlainValidator
+from typing_extensions import Annotated
 
 from .types import SecretType
 
@@ -49,20 +52,17 @@ def _json_bytes_encoder(val: bytes) -> str:
     return "".join(map(chr, val))
 
 
+JsonBytes = Annotated[bytes, PlainValidator(_json_bytes_decoder), PlainSerializer(_json_bytes_encoder)]
+
+
 class IdentityKeyPairModel(BaseModel):
     """
     The model representing the internal state of an :class:`~x3dh.identity_key_pair.IdentityKeyPair`.
     """
 
     version: str = "1.0.0"
-    secret: bytes
+    secret: JsonBytes
     secret_type: SecretType
-
-    # Workaround for correct serialization of bytes, see :func:`bytes_decoder` above for details.
-    class Config:  # pylint: disable=missing-class-docstring
-        json_encoders = { bytes: _json_bytes_encoder }
-
-    _decoders = validator("secret", pre=True, allow_reuse=True)(_json_bytes_decoder)
 
 
 class SignedPreKeyPairModel(BaseModel):
@@ -71,15 +71,9 @@ class SignedPreKeyPairModel(BaseModel):
     """
 
     version: str = "1.0.0"
-    priv: bytes
-    sig: bytes
+    priv: JsonBytes
+    sig: JsonBytes
     timestamp: int
-
-    # Workaround for correct serialization of bytes, see :func:`bytes_decoder` above for details.
-    class Config:  # pylint: disable=missing-class-docstring
-        json_encoders = { bytes: _json_bytes_encoder }
-
-    _decoders = validator("priv", "sig", pre=True, allow_reuse=True)(_json_bytes_decoder)
 
 
 class BaseStateModel(BaseModel):
@@ -91,10 +85,4 @@ class BaseStateModel(BaseModel):
     identity_key: IdentityKeyPairModel
     signed_pre_key: SignedPreKeyPairModel
     old_signed_pre_key: Optional[SignedPreKeyPairModel]
-    pre_keys: FrozenSet[bytes]
-
-    # Workaround for correct serialization of bytes, see :func:`bytes_decoder` above for details.
-    class Config:  # pylint: disable=missing-class-docstring
-        json_encoders = { bytes: _json_bytes_encoder }
-
-    _decoders = validator("pre_keys", pre=True, allow_reuse=True, each_item=True)(_json_bytes_decoder)
+    pre_keys: FrozenSet[JsonBytes]
