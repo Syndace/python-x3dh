@@ -57,6 +57,8 @@ jobs:
   publish:
     needs: [test, build]
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
 
     steps:
