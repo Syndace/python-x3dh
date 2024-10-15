@@ -1,5 +1,5 @@
 # This import from future (theoretically) enables sphinx_autodoc_typehints to handle type aliases better
-from __future__ import annotations  # pylint: disable=unused-variable
+from __future__ import annotations
 
 import base64
 from typing import List, Tuple, cast
@@ -10,7 +10,7 @@ from .models import IdentityKeyPairModel, SignedPreKeyPairModel, BaseStateModel
 from .types import JSONObject, SecretType
 
 
-__all__ = [  # pylint: disable=unused-variable
+__all__ = [
     "parse_identity_key_pair_model",
     "parse_signed_pre_key_pair_model",
     "parse_base_state_model"

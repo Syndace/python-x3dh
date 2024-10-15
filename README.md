@@ -20,7 +20,7 @@ In the X3DH specification, the identity key is a Curve25519/Curve448 key and [XE
 python-x3dh uses [pytest](https://docs.pytest.org/en/latest/) as its testing framework, [mypy](http://mypy-lang.org/) for static type checks and both [pylint](https://pylint.pycqa.org/en/latest/) and [Flake8](https://flake8.pycqa.org/en/latest/) for linting. All tests/checks can be run locally with the following commands:
 
 ```sh
-$ pip install --upgrade pytest pytest-asyncio pytest-cov mypy pylint flake8
+$ pip install --upgrade pytest pytest-asyncio pytest-cov mypy pylint flake8 setuptools
 $ mypy --strict x3dh/ setup.py tests/
 $ pylint x3dh/ setup.py tests/
 $ flake8 x3dh/ setup.py tests/

@@ -3,7 +3,7 @@ from typing import NamedTuple
 import xeddsa
 
 
-__all__ = [  # pylint: disable=unused-variable
+__all__ = [
     "PreKeyPair"
 ]
 

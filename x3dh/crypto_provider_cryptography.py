@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from .crypto_provider import CryptoProvider, HashFunction
 
 
-__all__ = [  # pylint: disable=unused-variable
+__all__ = [
     "CryptoProviderImpl"
 ]
 

@@ -9,7 +9,7 @@ from unittest import mock
 import x3dh
 
 
-__all__ = [  # pylint: disable=unused-variable
+__all__ = [
     "test_configuration",
     "test_key_agreements",
     "test_migrations",
@@ -27,7 +27,7 @@ try:
 except ImportError:
     pass
 else:
-    pytestmark = pytest.mark.asyncio  # pylint: disable=unused-variable
+    pytestmark = pytest.mark.asyncio
 
 
 def flip_random_bit(data: bytes, exclude_msb: bool = False) -> bytes:

@@ -1,5 +1,5 @@
 # This import from future (theoretically) enables sphinx_autodoc_typehints to handle type aliases better
-from __future__ import annotations  # pylint: disable=unused-variable
+from __future__ import annotations
 
 from abc import abstractmethod
 from typing import Optional, Tuple, Type, TypeVar
@@ -13,7 +13,7 @@ from .signed_pre_key_pair import SignedPreKeyPair
 from .types import Bundle, IdentityKeyFormat, Header, JSONObject
 
 
-__all__ = [  # pylint: disable=unused-variable
+__all__ = [
     "State"
 ]
 

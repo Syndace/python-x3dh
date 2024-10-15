@@ -8,7 +8,7 @@ from typing_extensions import Annotated
 from .types import SecretType
 
 
-__all__ = [  # pylint: disable=unused-variable
+__all__ = [
     "BaseStateModel",
     "IdentityKeyPairModel",
     "SignedPreKeyPairModel"
