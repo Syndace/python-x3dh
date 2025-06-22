@@ -3,6 +3,10 @@
 [![Build Status](https://github.com/Syndace/python-x3dh/actions/workflows/test-and-publish.yml/badge.svg)](https://github.com/Syndace/python-x3dh/actions/workflows/test-and-publish.yml)
 [![Documentation Status](https://readthedocs.org/projects/python-x3dh/badge/?version=latest)](https://python-x3dh.readthedocs.io/)
 
+**_This repository is actively maintained._**
+
+Activity is low at times because this project is already feature-complete, documented and tested.
+
 # python-x3dh #
 
 A Python implementation of the [Extended Triple Diffie-Hellman key agreement protocol](https://signal.org/docs/specifications/x3dh/).
