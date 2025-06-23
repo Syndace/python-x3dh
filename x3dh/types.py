@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from typing import Dict, FrozenSet, List, Mapping, NamedTuple, Optional, Union
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, Union
 from typing_extensions import TypeAlias
 
 
