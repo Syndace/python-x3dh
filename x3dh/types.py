@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from typing import Dict, FrozenSet, List, NamedTuple, Optional, Union
+from typing import FrozenSet, List, Mapping, NamedTuple, Optional, Union
 from typing_extensions import TypeAlias
 
 
@@ -19,8 +19,8 @@ __all__ = [
 # Type Aliases #
 ################
 
-JSONType: TypeAlias = Union[Dict[str, "JSONType"], List["JSONType"], str, int, float, bool, None]
-JSONObject: TypeAlias = Dict[str, "JSONType"]
+JSONType: TypeAlias = Union[Mapping[str, "JSONType"], List["JSONType"], str, int, float, bool, None]
+JSONObject: TypeAlias = Mapping[str, "JSONType"]
 
 
 ############################
