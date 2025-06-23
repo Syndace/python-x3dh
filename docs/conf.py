@@ -104,6 +104,10 @@ def autodoc_skip_member_handler(app, what, name, obj, skip, options):
     if name.startswith("__") and not name.endswith("_"):
         return True
 
+    # Other fixed names to always skip
+    if name in { "_abc_impl", "model_config" }:
+        return True
+
     # Skip __init__s without documentation. Those are just used for type hints.
     if name == "__init__" and obj.__doc__ is None:
         return True
