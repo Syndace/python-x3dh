@@ -1,4 +1,3 @@
-# This import from future (theoretically) enables sphinx_autodoc_typehints to handle type aliases better
 from __future__ import annotations
 
 import enum
@@ -89,7 +88,8 @@ class IdentityKeyFormat(enum.Enum):
 @enum.unique
 class SecretType(enum.Enum):
     """
-    The two types of secrets that an :class:`IdentityKeyPair` can use internally: a seed or a private key.
+    The two types of secrets that an :class:`~x3dh.identity_key_pair.IdentityKeyPair` can use internally: a
+    seed or a private key.
     """
 
     SEED: str = "SEED"

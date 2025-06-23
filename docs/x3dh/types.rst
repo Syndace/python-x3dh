@@ -6,3 +6,8 @@ Module: types
     :undoc-members:
     :member-order: bysource
     :show-inheritance:
+
+Type Aliases
+============
+
+.. autoclass:: x3dh.types.JSONObject
