@@ -15,8 +15,8 @@ class HashFunction(enum.Enum):
     Enumeration of the hash functions supported for the key derivation step of X3DH.
     """
 
-    SHA_256: str = "SHA_256"
-    SHA_512: str = "SHA_512"
+    SHA_256 = "SHA_256"
+    SHA_512 = "SHA_512"
 
     @property
     def hash_size(self) -> int:

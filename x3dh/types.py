@@ -81,8 +81,8 @@ class IdentityKeyFormat(enum.Enum):
       <https://www.rfc-editor.org/rfc/rfc8032.html#section-3.2>`_.
     """
 
-    CURVE_25519: str = "CURVE_25519"
-    ED_25519: str = "ED_25519"
+    CURVE_25519 = "CURVE_25519"
+    ED_25519 = "ED_25519"
 
 
 @enum.unique
@@ -92,5 +92,5 @@ class SecretType(enum.Enum):
     seed or a private key.
     """
 
-    SEED: str = "SEED"
-    PRIV: str = "PRIV"
+    SEED = "SEED"
+    PRIV = "PRIV"
