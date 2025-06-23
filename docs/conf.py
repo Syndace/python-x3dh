@@ -84,6 +84,7 @@ html_static_path = [ "_static" ]
 
 autodoc_typehints = "description"
 autodoc_type_aliases = { k: k for k in {
+    "JSONType",
     "JSONObject"
 } }
 

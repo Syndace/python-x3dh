@@ -10,4 +10,5 @@ Module: types
 Type Aliases
 ============
 
+.. autoclass:: x3dh.types.JSONType
 .. autoclass:: x3dh.types.JSONObject

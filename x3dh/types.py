@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import enum
-from typing import FrozenSet, List, Mapping, NamedTuple, Optional, Union
+from typing import Dict, FrozenSet, List, Mapping, NamedTuple, Optional, Union
+from typing_extensions import TypeAlias
 
 
 __all__ = [
     "Bundle",
     "IdentityKeyFormat",
     "Header",
+    "JSONType",
     "JSONObject",
     "SecretType"
 ]
@@ -17,22 +19,8 @@ __all__ = [
 # Type Aliases #
 ################
 
-# # Thanks @vanburgerberg - https://github.com/python/typing/issues/182
-# if TYPE_CHECKING:
-#     class JSONArray(list[JSONType], Protocol):  # type: ignore
-#         __class__: Type[list[JSONType]]  # type: ignore
-#
-#     class JSONObject(dict[str, JSONType], Protocol):  # type: ignore
-#         __class__: Type[dict[str, JSONType]]  # type: ignore
-#
-#     JSONType = Union[None, float, int, str, bool, JSONArray, JSONObject]
-
-# Sadly @vanburgerberg's solution doesn't seem to like Dict[str, bool], thus for now an incomplete JSON
-# type with finite levels of depth.
-Primitives = Union[None, float, int, str, bool]
-JSONType1 = Union[Primitives, List[Primitives], Mapping[str, Primitives]]
-JSONType = Union[Primitives, List[JSONType1], Mapping[str, JSONType1]]
-JSONObject = Mapping[str, JSONType]
+JSONType: TypeAlias = Union[Dict[str, "JSONType"], List["JSONType"], str, int, float, bool, None]
+JSONObject: TypeAlias = Dict[str, "JSONType"]
 
 
 ############################

@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+### Changed
+- Simplified the `JSONObject` type now that recursive aliases are properly supported
+
 ### Removed
 - Removed project.py and simplified version.py as part of the migration towards pyproject.toml
 

@@ -15,5 +15,6 @@ from .types import (
     Bundle as Bundle,
     Header as Header,
     IdentityKeyFormat as IdentityKeyFormat,
+    JSONType as JSONType,
     JSONObject as JSONObject
 )
