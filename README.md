@@ -24,13 +24,13 @@ In the X3DH specification, the identity key is a Curve25519/Curve448 key and [XE
 python-x3dh uses [pytest](https://docs.pytest.org/en/latest/) as its testing framework, [mypy](http://mypy-lang.org/) for static type checks and both [pylint](https://pylint.pycqa.org/en/latest/) and [Flake8](https://flake8.pycqa.org/en/latest/) for linting. All tests/checks can be run locally with the following commands:
 
 ```sh
-$ pip install --upgrade pytest pytest-asyncio pytest-cov mypy pylint flake8 setuptools
-$ mypy --strict x3dh/ setup.py tests/
-$ pylint x3dh/ setup.py tests/
-$ flake8 x3dh/ setup.py tests/
-$ pytest --cov=x3dh --cov-report term-missing:skip-covered
+$ pip install --upgrade .[test,lint]
+$ mypy x3dh/ tests/
+$ pylint x3dh/ tests/
+$ flake8 x3dh/ tests/
+$ pytest
 ```
 
 ## Documentation ##
 
-View the documentation on [readthedocs.io](https://python-x3dh.readthedocs.io/) or build it locally, which requires the Python packages listed in `docs/requirements.txt`. With all dependencies installed, run `make html` in the `docs/` directory. You can find the generated documentation in `docs/_build/html/`.
+View the documentation on [readthedocs.io](https://python-x3dh.readthedocs.io/) or build it locally. Additional requirements to build the docs can be installed using `pip install .[docs]`. With all dependencies installed, run `make html` in the `docs/` directory. You can find the generated documentation in `docs/_build/html/`.

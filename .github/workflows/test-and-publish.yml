@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "pypy-3.10"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "pypy-3.10", "pypy-3.11"]
 
     steps:
       - uses: actions/checkout@v4
@@ -26,16 +26,16 @@ jobs:
       - name: Build and install python-x3dh
         run: pip install .
       - name: Install test dependencies
-        run: pip install --upgrade pytest pytest-asyncio pytest-cov mypy pylint flake8 setuptools
+        run: pip install .[test,lint]
 
       - name: Type-check using mypy
-        run: mypy --strict x3dh/ setup.py tests/
+        run: mypy x3dh/ tests/
       - name: Lint using pylint
-        run: pylint x3dh/ setup.py tests/
+        run: pylint x3dh/ tests/
       - name: Format-check using Flake8
-        run: flake8 x3dh/ setup.py tests/
+        run: flake8 x3dh/ tests/
       - name: Test using pytest
-        run: pytest --cov=x3dh --cov-report term-missing:skip-covered
+        run: pytest
 
   build:
     name: Build source distribution and wheel
@@ -44,12 +44,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install build
+        run: pip install build
+
       - name: Build source distribution and wheel
-        run: python3 setup.py sdist bdist_wheel
+        run: python -m build --sdist --wheel
 
       - uses: actions/upload-artifact@v4
         with:
-          name: sdist
+          name: dist
           path: |
             dist/*.tar.gz
             dist/*.whl
