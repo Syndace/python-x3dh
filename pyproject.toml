@@ -43,7 +43,8 @@ classifiers = [
 version = { attr = "x3dh.version.__version__" }
 
 [tool.setuptools.packages.find]
-exclude = [ "tests" ]
+include = [ "x3dh", "x3dh.*" ]
+namespaces = false
 
 [project.optional-dependencies]
 docs = [
