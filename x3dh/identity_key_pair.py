@@ -2,14 +2,19 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import json
+import sys
 from typing import cast
-from typing_extensions import assert_never
 
 import xeddsa
 
 from .migrations import parse_identity_key_pair_model
 from .models import IdentityKeyPairModel
 from .types import JSONObject, SecretType
+
+if sys.version_info >= (3, 11):
+    from typing import assert_never
+else:
+    from typing_extensions import assert_never
 
 
 __all__ = [

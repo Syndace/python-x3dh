@@ -18,7 +18,7 @@ dependencies = [
     "XEdDSA>=1.0.0,<2",
     "cryptography>=3.3.2",
     "pydantic>=1.7.4",
-    "typing-extensions>=4.3.0"
+    "typing-extensions>=4.3.0; python_version < '3.11'"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
